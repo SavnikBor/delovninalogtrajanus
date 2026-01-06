@@ -1,0 +1,16 @@
+# env
+.env
+backend/.env
+
+# secrets
+*.key
+*.txt
+
+# node
+node_modules
+node_modules
+node_modules
+node_modules
+node_modules
+node_modules
+node_modules

@@ -1,0 +1,290 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Skener postaje</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.10/html5-qrcode.min.js"></script>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; }
+  input { font-size: 20px; padding: 10px; width: 100%; box-sizing: border-box; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .badge { padding: 4px 8px; border-radius: 6px; background: #eef; color: #223; font-size: 12px; }
+  button { padding: 8px 12px; font-size: 14px; border: 1px solid #ccc; border-radius: 6px; background: #fafafa; cursor: pointer; }
+  button:disabled { background: #eee; color: #999; cursor: not-allowed; }
+  #log { margin-top: 12px; font-size: 14px; color: #0a7a27; }
+  #err { margin-top: 12px; font-size: 14px; color: #b00020; }
+  label { font-size: 14px; color: #444; }
+  select { padding: 6px; font-size: 14px; }
+</style>
+<h1>Skener postaje</h1>
+<div class="row">
+  <div>Postaja:</div>
+  <div><span id="postaja" class="badge"></span></div>
+  <div>
+    <label for="sel">Spremeni:</label>
+    <select id="sel">
+      <option>Tisk</option>
+      <option>Plastifikacija</option>
+      <option>UV Tisk</option>
+      <option>UV Lak</option>
+      <option>Izsek/Zasek</option>
+      <option>Razrez</option>
+      <option>Topli tisk</option>
+      <option>Biganje</option>
+      <option>Biganje + ročno zgibanje</option>
+      <option>Zgibanje</option>
+      <option>Lepljenje</option>
+      <option>Lepljenje blokov</option>
+      <option>Vezava</option>
+      <option>Vrtanje luknje</option>
+      <option>Perforacija</option>
+      <option>Kooperanti</option>
+    </select>
+  </div>
+  <button id="saveStep">Shrani kot privzeto</button>
+  <button id="clearStep">Počisti</button>
+  <button id="info">ℹ️</button>
+  <dialog id="dlg">
+    <p>Ta skener pošilja odčitane številke nalogov na API /api/scan v formatu { nalog, step }.</p>
+    <p>Za uporabo QR skenerja na telefonu: odprite to stran in v fokusiran input skenirajte kodo. Večina čitalnikov deluje kot tipkovnica in vpiše številko ter zaključi z Enter.</p>
+    <button onclick="document.getElementById('dlg').close()">Zapri</button>
+  </dialog>
+  </div>
+
+<div style="margin-top:12px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+  <div>
+    <div id="reader" style="width: 280px; max-width: 95vw;"></div>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button id="startCam">Zaženi kamero</button>
+      <button id="stopCam">Ustavi kamero</button>
+    </div>
+  </div>
+  <div style="flex:1; min-width: 260px;">
+    <p>
+      <label for="inp">Vnos številke naloga (fallback):</label>
+      <input id="inp" placeholder="npr. 65001" />
+    </p>
+    <div class="row" style="margin-top:8px;">
+      <button id="send" disabled>Pošlji</button>
+      <span id="log"></span>
+      <span id="err"></span>
+      <span id="last"></span>
+      <button id="clear">Počisti vnos</button>
+      <button id="focus">Fokus input</button>
+      <button id="demo">Demo pošiljanje</button>
+      <button id="ping">Ping API</button>
+      <span id="pong" class="badge"></span>
+      <span id="api" class="badge"></span>
+      <span id="via" class="badge"></span>
+      <span id="now" class="badge"></span>
+    </div>
+  </div>
+</div>
+
+<h3 style="margin-top:16px;">Zadnji skeni</h3>
+<div id="scanLog" style="border:1px solid #ddd; padding:8px; border-radius:6px; max-height: 300px; overflow:auto;"></div>
+
+<script>
+  setInterval(() => {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    const ss = String(d.getSeconds()).padStart(2,'0');
+    document.getElementById('now').textContent = hh + ':' + mm + ':' + ss;
+  }, 1000);
+</script>
+
+<script>
+  const apiBase = (function() {
+    const p = new URLSearchParams(location.search);
+    const override = p.get('api');
+    if (override) return override.replace(/\/+$/, '');
+    if (location.hostname === 'localhost') return 'http://localhost:5000';
+    return location.origin.replace(/:\d+$/, ':5000');
+  })();
+  document.getElementById('api').textContent = apiBase;
+  const params = new URLSearchParams(location.search);
+  const storedStep = localStorage.getItem('scanStep') || '';
+  const stepFromUrl = params.get('step');
+  const token = params.get('token') || '';
+  const sel = document.getElementById('sel');
+  if (stepFromUrl) sel.value = stepFromUrl;
+  else if (storedStep) sel.value = storedStep;
+  document.getElementById('postaja').textContent = sel.value;
+  sel.addEventListener('change', () => {
+    document.getElementById('postaja').textContent = sel.value;
+  });
+  document.getElementById('saveStep').addEventListener('click', () => {
+    localStorage.setItem('scanStep', sel.value);
+    document.getElementById('log').textContent = 'Privzeta postaja shranjena.';
+    setTimeout(() => document.getElementById('log').textContent = '', 1200);
+  });
+  document.getElementById('clearStep').addEventListener('click', () => {
+    localStorage.removeItem('scanStep');
+    document.getElementById('log').textContent = 'Privzeta postaja počiščena.';
+    setTimeout(() => document.getElementById('log').textContent = '', 1200);
+  });
+  document.getElementById('info').addEventListener('click', () => {
+    document.getElementById('dlg').showModal();
+  });
+
+  const inp = document.getElementById('inp');
+  const sendBtn = document.getElementById('send');
+  const clearBtn = document.getElementById('clear');
+  const focusBtn = document.getElementById('focus');
+  const demoBtn = document.getElementById('demo');
+  const pingBtn = document.getElementById('ping');
+  const logEl = document.getElementById('log');
+  const errEl = document.getElementById('err');
+  const lastEl = document.getElementById('last');
+  const scanLogEl = document.getElementById('scanLog');
+
+  const enableSend = () => {
+    sendBtn.disabled = !/^\d{3,}$/.test(inp.value.trim());
+  };
+  inp.addEventListener('input', enableSend);
+  enableSend();
+  clearBtn.addEventListener('click', () => { inp.value=''; enableSend(); inp.focus(); });
+  focusBtn.addEventListener('click', () => inp.focus());
+  pingBtn.addEventListener('click', async () => {
+    errEl.textContent = '';
+    logEl.textContent = '';
+    try {
+      const res = await fetch(apiBase + '/');
+      logEl.textContent = res.ok ? 'API OK' : ('API ERR ' + res.status);
+      document.getElementById('via').textContent = res.ok ? 'online' : 'offline';
+    } catch (e) {
+      errEl.textContent = 'API unreachable';
+    }
+  });
+  demoBtn.addEventListener('click', async () => {
+    inp.value = '65001';
+    enableSend();
+    sendBtn.click();
+  });
+
+  async function submit() {
+    const nalog = inp.value.trim();
+    if (!/^\d{3,}$/.test(nalog)) return;
+    errEl.textContent = '';
+    logEl.textContent = '';
+    try {
+      const res = await fetch(apiBase + '/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nalog: Number(nalog), step: sel.value, token })
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      logEl.textContent = `✓ Poslano: nalog=${nalog}, step=${sel.value}`;
+      lastEl.textContent = new Date().toLocaleTimeString();
+      inp.value = '';
+      enableSend();
+    } catch (e) {
+      errEl.textContent = 'Napaka pri pošiljanju.';
+    }
+  }
+  sendBtn.addEventListener('click', submit);
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submit();
+  });
+
+  // QR kamera z html5-qrcode
+  const startCamBtn = document.getElementById('startCam');
+  const stopCamBtn = document.getElementById('stopCam');
+  let html5Qrcode = null;
+  function parseScanResult(text) {
+    // Podpri oblike: "65001", "65001_Vizitke", "NALOG 65001 | Vizitke"
+    const m = String(text || '').match(/(\d{3,})/);
+    return m ? m[1] : null;
+  }
+  async function onScanSuccess(decodedText) {
+    const num = parseScanResult(decodedText);
+    if (!num) {
+      errEl.textContent = 'QR ne vsebuje številke naloga.';
+      return;
+    }
+    inp.value = num;
+    enableSend();
+    await submit();
+  }
+  startCamBtn.addEventListener('click', async () => {
+    try {
+      if (!window.Html5Qrcode) throw new Error('Html5Qrcode ni na voljo.');
+      if (!html5Qrcode) html5Qrcode = new Html5Qrcode('reader');
+      await html5Qrcode.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        onScanSuccess
+      );
+      logEl.textContent = 'Kamera zagnana.';
+    } catch (e) {
+      errEl.textContent = 'Napaka pri dostopu do kamere.';
+    }
+  });
+  stopCamBtn.addEventListener('click', async () => {
+    try {
+      if (html5Qrcode) {
+        await html5Qrcode.stop();
+        await html5Qrcode.clear();
+      }
+      logEl.textContent = 'Kamera ustavljena.';
+    } catch (e) {}
+  });
+
+  // Zadnji skeni + undo
+  function renderLog(items) {
+    scanLogEl.innerHTML = '';
+    (items || []).forEach((it) => {
+      const row = document.createElement('div');
+      row.style.padding = '6px 4px';
+      row.style.borderBottom = '1px solid #eee';
+      const t = new Date(it.ts || Date.now());
+      const hh = String(t.getHours()).padStart(2,'0');
+      const mm = String(t.getMinutes()).padStart(2,'0');
+      const ss = String(t.getSeconds()).padStart(2,'0');
+      row.innerHTML = `
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <span class="badge">${hh}:${mm}:${ss}</span>
+          <span>${it.action === 'undo' ? '⤺ UNDO' : '✓ SCAN'}</span>
+          <strong>#${it.nalog}</strong>
+          <span>${it.step}</span>
+          <button data-nalog="${it.nalog}" data-step="${it.step}">Prekliči</button>
+        </div>
+      `;
+      const btn = row.querySelector('button');
+      btn.addEventListener('click', async () => {
+        try {
+          const res = await fetch(apiBase + '/api/scan-undo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nalog: Number(btn.dataset.nalog), step: btn.dataset.step, token })
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+        } catch (e) {
+          alert('Preklic ni uspel.');
+        }
+      });
+      scanLogEl.appendChild(row);
+    });
+  }
+  async function loadLog() {
+    try {
+      const res = await fetch(apiBase + '/api/scan-log');
+      if (!res.ok) return;
+      const data = await res.json();
+      renderLog(data);
+    } catch {}
+  }
+  await loadLog();
+  try {
+    const es = new EventSource(apiBase + '/api/scan-events');
+    es.onmessage = (e) => {
+      try {
+        loadLog();
+      } catch {}
+    };
+  } catch {}
+</script>
+
+
+
+
