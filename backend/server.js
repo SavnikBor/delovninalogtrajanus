@@ -844,6 +844,242 @@ app.delete('/api/kupec/:id', async (req, res) => {
   }
 });
 
+// ---------- Izsekovalna orodja (štance) ----------
+async function getIzsekovalnaOrodjaPool() {
+  const targetDb = process.env.DB_NAME || process.env.DB_NAME_TEST || 'DelovniNalog_TEST';
+  const cfg = buildDbConfig(targetDb);
+  let pool;
+  try {
+    pool = await new sql.ConnectionPool(cfg).connect();
+  } catch (e) {
+    const hasInstance = !!(cfg.options && cfg.options.instanceName);
+    if (hasInstance && cfg.port) {
+      const cfg2 = { ...cfg, port: undefined };
+      pool = await new sql.ConnectionPool(cfg2).connect();
+    } else {
+      throw e;
+    }
+  }
+  return pool;
+}
+
+// GET /api/izsekovalna-orodja
+app.get('/api/izsekovalna-orodja', async (req, res) => {
+  let pool = null;
+  try {
+    pool = await getIzsekovalnaOrodjaPool();
+    const result = await pool.request().query(`
+      SELECT o.*, k.Naziv AS KupecNaziv
+      FROM dbo.IzsekovalnoOrodje o
+      LEFT JOIN dbo.Kupec k ON k.KupecID = o.KupecID
+      ORDER BY o.ZaporednaStevilka ASC
+    `);
+    res.json(result.recordset || []);
+  } catch (err) {
+    if (err && err.message && /Invalid object name.*IzsekovalnoOrodje/i.test(err.message)) {
+      return res.status(503).json({ error: 'Tabela IzsekovalnoOrodje še ne obstaja. Zaženi migracijo backend/sql/20260314_izsekovalna_orodja.sql' });
+    }
+    console.error('Napaka pri poizvedbi izsekovalnih orodij:', err);
+    res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  } finally {
+    try { if (pool) await pool.close(); } catch {}
+  }
+});
+
+// POST /api/izsekovalna-orodja (dodaj novo)
+app.post('/api/izsekovalna-orodja', async (req, res) => {
+  let pool = null;
+  try {
+    const { ZaporednaStevilka, StevilkaNaloga, Opis, VelikostProdukta, LetoIzdelave, StrankaNaziv, KupecID, Komentar } = req.body || {};
+    const zap = parseInt(String(ZaporednaStevilka || ''), 10);
+    const stNal = parseInt(String(StevilkaNaloga || ''), 10);
+    if (!Number.isFinite(zap) || zap < 1) {
+      return res.status(400).json({ ok: false, error: 'Zaporedna številka je obvezna in mora biti pozitivno število.' });
+    }
+    if (!Number.isFinite(stNal) || stNal < 1) {
+      return res.status(400).json({ ok: false, error: 'Številka naloga je obvezna in mora biti pozitivno število.' });
+    }
+    pool = await getIzsekovalnaOrodjaPool();
+    const exist = await pool.request().input('ZaporednaStevilka', sql.Int, zap)
+      .query('SELECT 1 FROM dbo.IzsekovalnoOrodje WHERE ZaporednaStevilka = @ZaporednaStevilka');
+    if (exist.recordset && exist.recordset.length > 0) {
+      return res.status(409).json({ ok: false, error: `Zaporedna številka ${zap} že obstaja.` });
+    }
+    const kupecIdVal = (KupecID != null && KupecID !== '') ? parseInt(String(KupecID), 10) : null;
+    const stNaziv = (StrankaNaziv || '').toString().trim() || null;
+    const insertResult = await pool.request()
+      .input('ZaporednaStevilka', sql.Int, zap)
+      .input('StevilkaNaloga', sql.Int, stNal)
+      .input('Opis', sql.NVarChar(500), (Opis || '').toString().trim() || null)
+      .input('VelikostProdukta', sql.NVarChar(200), (VelikostProdukta || '').toString().trim() || null)
+      .input('LetoIzdelave', sql.Int, Number.isFinite(parseInt(String(LetoIzdelave || ''), 10)) ? parseInt(String(LetoIzdelave), 10) : null)
+      .input('StrankaNaziv', sql.NVarChar(255), stNaziv)
+      .input('KupecID', sql.Int, kupecIdVal)
+      .input('Komentar', sql.NVarChar(500), (Komentar || '').toString().trim() || null)
+      .query(`
+        INSERT INTO dbo.IzsekovalnoOrodje (ZaporednaStevilka, StevilkaNaloga, Opis, VelikostProdukta, LetoIzdelave, StrankaNaziv, KupecID, Komentar)
+        VALUES (@ZaporednaStevilka, @StevilkaNaloga, @Opis, @VelikostProdukta, @LetoIzdelave, @StrankaNaziv, @KupecID, @Komentar);
+        SELECT SCOPE_IDENTITY() AS IzsekovalnoOrodjeID;
+      `);
+    const newId = insertResult.recordset && insertResult.recordset[0] ? parseInt(insertResult.recordset[0].IzsekovalnoOrodjeID, 10) : null;
+    return res.json({ ok: true, IzsekovalnoOrodjeID: newId, ZaporednaStevilka: zap, StevilkaNaloga: stNal });
+  } catch (err) {
+    console.error('Napaka pri dodajanju izsekovalnega orodja:', err);
+    res.status(500).json({ ok: false, error: err && err.message ? err.message : String(err) });
+  } finally {
+    try { if (pool) await pool.close(); } catch {}
+  }
+});
+
+// PUT /api/izsekovalna-orodja/:id (posodobi)
+app.put('/api/izsekovalna-orodja/:id', async (req, res) => {
+  let pool = null;
+  try {
+    const id = parseInt(String(req.params.id || ''), 10);
+    if (!Number.isFinite(id) || id < 1) {
+      return res.status(400).json({ ok: false, error: 'Neveljaven ID.' });
+    }
+    const { ZaporednaStevilka, StevilkaNaloga, Opis, VelikostProdukta, LetoIzdelave, StrankaNaziv, KupecID, Komentar } = req.body || {};
+    const zap = ZaporednaStevilka != null ? parseInt(String(ZaporednaStevilka), 10) : null;
+    const stNal = StevilkaNaloga != null ? parseInt(String(StevilkaNaloga), 10) : null;
+    pool = await getIzsekovalnaOrodjaPool();
+    if (zap != null && Number.isFinite(zap) && zap >= 1) {
+      const exist = await pool.request()
+        .input('ZaporednaStevilka', sql.Int, zap)
+        .input('IzsekovalnoOrodjeID', sql.Int, id)
+        .query('SELECT 1 FROM dbo.IzsekovalnoOrodje WHERE ZaporednaStevilka = @ZaporednaStevilka AND IzsekovalnoOrodjeID <> @IzsekovalnoOrodjeID');
+      if (exist.recordset && exist.recordset.length > 0) {
+        return res.status(409).json({ ok: false, error: `Zaporedna številka ${zap} že obstaja.` });
+      }
+    }
+    const updates = [];
+    const reqObj = pool.request().input('IzsekovalnoOrodjeID', sql.Int, id);
+    if (zap != null && Number.isFinite(zap)) { updates.push('ZaporednaStevilka = @ZaporednaStevilka'); reqObj.input('ZaporednaStevilka', sql.Int, zap); }
+    if (stNal != null && Number.isFinite(stNal)) { updates.push('StevilkaNaloga = @StevilkaNaloga'); reqObj.input('StevilkaNaloga', sql.Int, stNal); }
+    updates.push('Opis = @Opis'); reqObj.input('Opis', sql.NVarChar(500), (Opis || '').toString().trim() || null);
+    updates.push('VelikostProdukta = @VelikostProdukta'); reqObj.input('VelikostProdukta', sql.NVarChar(200), (VelikostProdukta || '').toString().trim() || null);
+    updates.push('LetoIzdelave = @LetoIzdelave'); reqObj.input('LetoIzdelave', sql.Int, Number.isFinite(parseInt(String(LetoIzdelave || ''), 10)) ? parseInt(String(LetoIzdelave), 10) : null);
+    updates.push('StrankaNaziv = @StrankaNaziv'); reqObj.input('StrankaNaziv', sql.NVarChar(255), (StrankaNaziv || '').toString().trim() || null);
+    const kupecIdVal = (KupecID != null && KupecID !== '') ? parseInt(String(KupecID), 10) : null;
+    updates.push('KupecID = @KupecID'); reqObj.input('KupecID', sql.Int, kupecIdVal);
+    updates.push('Komentar = @Komentar'); reqObj.input('Komentar', sql.NVarChar(500), (Komentar || '').toString().trim() || null);
+    updates.push('UpdatedAt = SYSUTCDATETIME()');
+    await reqObj.query(`UPDATE dbo.IzsekovalnoOrodje SET ${updates.join(', ')} WHERE IzsekovalnoOrodjeID = @IzsekovalnoOrodjeID`);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Napaka pri posodabljanju izsekovalnega orodja:', err);
+    res.status(500).json({ ok: false, error: err && err.message ? err.message : String(err) });
+  } finally {
+    try { if (pool) await pool.close(); } catch {}
+  }
+});
+
+// DELETE /api/izsekovalna-orodja/:id
+app.delete('/api/izsekovalna-orodja/:id', async (req, res) => {
+  let pool = null;
+  try {
+    const id = parseInt(String(req.params.id || ''), 10);
+    if (!Number.isFinite(id) || id < 1) {
+      return res.status(400).json({ ok: false, error: 'Neveljaven ID.' });
+    }
+    pool = await getIzsekovalnaOrodjaPool();
+    await pool.request().input('IzsekovalnoOrodjeID', sql.Int, id)
+      .query('DELETE FROM dbo.IzsekovalnoOrodje WHERE IzsekovalnoOrodjeID = @IzsekovalnoOrodjeID');
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('Napaka pri brisanju izsekovalnega orodja:', err);
+    res.status(500).json({ ok: false, error: err && err.message ? err.message : String(err) });
+  } finally {
+    try { if (pool) await pool.close(); } catch {}
+  }
+});
+
+// POST /api/izsekovalna-orodja/import (uvoz iz Excel/JSON)
+app.post('/api/izsekovalna-orodja/import', async (req, res) => {
+  let pool = null;
+  try {
+    const rows = req.body?.rows || req.body;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ ok: false, error: 'Potrebna je matrika vrstic (rows).' });
+    }
+    pool = await getIzsekovalnaOrodjaPool();
+    const existing = await pool.request().query('SELECT ZaporednaStevilka FROM dbo.IzsekovalnoOrodje');
+    const existingSet = new Set((existing.recordset || []).map(r => Number(r.ZaporednaStevilka)));
+    let inserted = 0;
+    let skipped = 0;
+    for (const row of rows) {
+      const parseSeq = (v) => {
+        if (typeof v === 'number' && Number.isFinite(v)) return v;
+        const s = String(v || '').trim();
+        const m = s.match(/^(\d+)/);
+        return m ? parseInt(m[1], 10) : null;
+      };
+      const parseNalog = (v) => {
+        if (typeof v === 'number' && Number.isFinite(v)) return v;
+        const s = String(v || '').trim();
+        const parts = s.split(/\s+/);
+        const num = parts.find(p => /^\d{4,}$/.test(p)) || parts[parts.length - 1];
+        return num ? parseInt(String(num), 10) : null;
+      };
+      const zap = parseSeq(row.ZaporednaStevilka ?? row.zaporednaStevilka ?? row['Ime štance/nalog'] ?? row.imeStanceNalog ?? row[0]);
+      const stNal = parseNalog(row.StevilkaNaloga ?? row.stevilkaNaloga ?? row['Ime štance/nalog'] ?? row.imeStanceNalog ?? row[0]);
+      const opis = (row.Opis ?? row.opis ?? row['Opis'] ?? row[1] ?? '').toString().trim() || null;
+      const velikost = (row.VelikostProdukta ?? row.velikostProdukta ?? row['Velikost končnega produkta: (notr. Dim.)'] ?? row[2] ?? '').toString().trim() || null;
+      const leto = parseInt(String(row.LetoIzdelave ?? row.letoIzdelave ?? row['Leto izdelave'] ?? row[3] ?? ''), 10);
+      const stranka = (row.StrankaNaziv ?? row.strankaNaziv ?? row['Stranka'] ?? row.stranka ?? row[4] ?? '').toString().trim() || null;
+      const komentar = (row.Komentar ?? row.komentar ?? row['komentar'] ?? row[5] ?? '').toString().trim() || null;
+      if (!zap || !stNal || existingSet.has(zap)) {
+        skipped++;
+        continue;
+      }
+      try {
+        await pool.request()
+          .input('ZaporednaStevilka', sql.Int, zap)
+          .input('StevilkaNaloga', sql.Int, stNal)
+          .input('Opis', sql.NVarChar(500), opis)
+          .input('VelikostProdukta', sql.NVarChar(200), velikost)
+          .input('LetoIzdelave', sql.Int, Number.isFinite(leto) ? leto : null)
+          .input('StrankaNaziv', sql.NVarChar(255), stranka)
+          .input('KupecID', sql.Int, null)
+          .input('Komentar', sql.NVarChar(500), komentar)
+          .query(`
+            INSERT INTO dbo.IzsekovalnoOrodje (ZaporednaStevilka, StevilkaNaloga, Opis, VelikostProdukta, LetoIzdelave, StrankaNaziv, KupecID, Komentar)
+            VALUES (@ZaporednaStevilka, @StevilkaNaloga, @Opis, @VelikostProdukta, @LetoIzdelave, @StrankaNaziv, @KupecID, @Komentar)
+          `);
+        existingSet.add(zap);
+        inserted++;
+      } catch (e) {
+        skipped++;
+      }
+    }
+    return res.json({ ok: true, inserted, skipped });
+  } catch (err) {
+    console.error('Napaka pri uvozu izsekovalnih orodij:', err);
+    res.status(500).json({ ok: false, error: err && err.message ? err.message : String(err) });
+  } finally {
+    try { if (pool) await pool.close(); } catch {}
+  }
+});
+
+// GET /api/izsekovalna-orodja/next-zaporedna (naslednja prosta zaporedna številka)
+app.get('/api/izsekovalna-orodja/next-zaporedna', async (req, res) => {
+  let pool = null;
+  try {
+    pool = await getIzsekovalnaOrodjaPool();
+    const result = await pool.request().query('SELECT ISNULL(MAX(ZaporednaStevilka), 0) + 1 AS Next FROM dbo.IzsekovalnoOrodje');
+    const next = result.recordset && result.recordset[0] ? Number(result.recordset[0].Next) : 1;
+    res.json({ next });
+  } catch (err) {
+    if (err && err.message && /Invalid object name.*IzsekovalnoOrodje/i.test(err.message)) {
+      return res.json({ next: 1 });
+    }
+    console.error('Napaka pri poizvedbi:', err);
+    res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  } finally {
+    try { if (pool) await pool.close(); } catch {}
+  }
+});
+
 // API endpoint: GET /api/delovni-nalogi — "lite" seznam nalogov za UI (primerno za polling)
 // Opomba: /api/delovni-nalogi/test ostaja kot alias za diagnostiko.
 async function handleGetDelovniNalogi(req, res, opts) {
@@ -6802,6 +7038,48 @@ try {
 } catch (e) {
   console.warn('Opozorilo: static serving frontenda ni uspelo:', e && e.message ? e.message : String(e));
 }
+
+// Avtomatska migracija: ustvari tabelo IzsekovalnoOrodje če ne obstaja
+(async function ensureIzsekovalnaOrodjaTable() {
+  let pool = null;
+  try {
+    const targetDb = process.env.DB_NAME || process.env.DB_NAME_TEST || 'DelovniNalog_TEST';
+    const cfg = buildDbConfig(targetDb);
+    pool = await new sql.ConnectionPool(cfg).connect();
+    const check = await pool.request().query(`
+      SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[IzsekovalnoOrodje]') AND type = N'U'
+    `);
+    if (check.recordset && check.recordset.length > 0) return;
+    await pool.request().query(`
+      CREATE TABLE [dbo].[IzsekovalnoOrodje](
+        [IzsekovalnoOrodjeID] INT IDENTITY(1,1) NOT NULL,
+        [ZaporednaStevilka] INT NOT NULL,
+        [StevilkaNaloga] INT NOT NULL,
+        [Opis] NVARCHAR(500) NULL,
+        [VelikostProdukta] NVARCHAR(200) NULL,
+        [LetoIzdelave] INT NULL,
+        [StrankaNaziv] NVARCHAR(255) NULL,
+        [KupecID] INT NULL,
+        [Komentar] NVARCHAR(500) NULL,
+        [CreatedAt] DATETIME2 NOT NULL CONSTRAINT DF_IzsekovalnoOrodje_Created DEFAULT (SYSUTCDATETIME()),
+        [UpdatedAt] DATETIME2 NOT NULL CONSTRAINT DF_IzsekovalnoOrodje_Updated DEFAULT (SYSUTCDATETIME()),
+        CONSTRAINT PK_IzsekovalnoOrodje PRIMARY KEY ([IzsekovalnoOrodjeID])
+      );
+      CREATE UNIQUE INDEX IX_IzsekovalnoOrodje_ZaporednaStevilka ON [dbo].[IzsekovalnoOrodje]([ZaporednaStevilka]);
+    `);
+    try {
+      const hasKupec = await pool.request().query(`SELECT 1 FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[Kupec]') AND type = N'U'`);
+      if (hasKupec.recordset && hasKupec.recordset.length > 0) {
+        await pool.request().query(`ALTER TABLE [dbo].[IzsekovalnoOrodje] WITH NOCHECK ADD CONSTRAINT FK_IzsekovalnoOrodje_Kupec FOREIGN KEY ([KupecID]) REFERENCES [dbo].[Kupec]([KupecID])`);
+      }
+    } catch (fkErr) { /* FK opcijsko */ }
+    console.log('✅ Tabela IzsekovalnoOrodje ustvarjena.');
+  } catch (e) {
+    console.warn('⚠️  Migracija IzsekovalnoOrodje:', e && e.message ? e.message : e);
+  } finally {
+    try { if (pool) await pool.close(); } catch {}
+  }
+})();
 
 app.listen(PORT, HOST, () => {
   console.log(`✅ Server teče na http://${HOST}:${PORT}`);
