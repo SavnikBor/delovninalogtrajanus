@@ -28,6 +28,7 @@ import Analiza from './components/Analiza';
 import KooperantiPregled from './components/KooperantiPregled';
 import DostavaTiskovin from './components/DostavaTiskovin';
 import Koledar from './components/Koledar';
+import IzsekovalnaOrodja from './components/IzsekovalnaOrodja';
 
 // Definicije tipov za podatke
 interface NalogPodatki {
@@ -1032,7 +1033,7 @@ function App() {
   const [showSavedAnim, setShowSavedAnim] = useState(false);
   const [showDeletedAnim, setShowDeletedAnim] = useState(false);
   const [showEmailAnim, setShowEmailAnim] = useState(false);
-  const [aktivniZavihek, setAktivniZavihek] = useState<'delovniNalog'|'prioritetniNalogi'|'kapacitete'|'koledar'|'analiza'>('delovniNalog');
+  const [aktivniZavihek, setAktivniZavihek] = useState<'delovniNalog'|'prioritetniNalogi'|'kapacitete'|'koledar'|'izsekovalnaOrodja'|'analiza'>('delovniNalog');
   const [scrollToPrioritetniNalog, setScrollToPrioritetniNalog] = useState<{ id: number; ts: number } | null>(null);
   const [scrollToSeznamNalog, setScrollToSeznamNalog] = useState<{ id: number; ts: number } | null>(null);
   // Scroll restore (per tab + delovni nalog: seznam + obrazec)
@@ -1041,6 +1042,7 @@ function App() {
   const prioritetniScrollRef = useRef<HTMLDivElement | null>(null);
   const kapaciteteScrollRef = useRef<HTMLDivElement | null>(null);
   const koledarScrollRef = useRef<HTMLDivElement | null>(null);
+  const izsekovalnaOrodjaScrollRef = useRef<HTMLDivElement | null>(null);
   const analizaScrollRef = useRef<HTMLDivElement | null>(null);
   // Refs za tab navigacijo med zavihki
   const tabsBarRef = useRef<HTMLDivElement | null>(null);
@@ -1048,6 +1050,7 @@ function App() {
   const prioritetniNalogiTabRef = useRef<HTMLButtonElement | null>(null);
   const kapaciteteTabRef = useRef<HTMLButtonElement | null>(null);
   const koledarTabRef = useRef<HTMLButtonElement | null>(null);
+  const izsekovalnaOrodjaTabRef = useRef<HTMLButtonElement | null>(null);
   const aktivniZavihekRef = useRef<typeof aktivniZavihek>(aktivniZavihek);
   const [analizaUnlocked, setAnalizaUnlocked] = useState(false);
   const [showAnalizaPrompt, setShowAnalizaPrompt] = useState(false);
@@ -1107,6 +1110,7 @@ function App() {
         key === 'prioritetniNalogi' ? prioritetniScrollRef.current :
         key === 'kapacitete' ? kapaciteteScrollRef.current :
         key === 'koledar' ? koledarScrollRef.current :
+        key === 'izsekovalnaOrodja' ? izsekovalnaOrodjaScrollRef.current :
         key === 'analiza' ? analizaScrollRef.current :
         null;
       if (!el) return;
@@ -1294,17 +1298,24 @@ function App() {
         delovniNalogTabRef.current,
         prioritetniNalogiTabRef.current,
         kapaciteteTabRef.current,
-        koledarTabRef.current
+        koledarTabRef.current,
+        izsekovalnaOrodjaTabRef.current
       ];
-      const tabKeys: Array<'delovniNalog' | 'prioritetniNalogi' | 'kapacitete' | 'koledar'> = [
+      const tabKeys: Array<'delovniNalog' | 'prioritetniNalogi' | 'kapacitete' | 'koledar' | 'izsekovalnaOrodja'> = [
         'delovniNalog',
         'prioritetniNalogi',
         'kapacitete',
-        'koledar'
+        'koledar',
+        'izsekovalnaOrodja'
       ];
 
       const cur = aktivniZavihekRef.current;
-      const curIdx = cur === 'prioritetniNalogi' ? 1 : cur === 'kapacitete' ? 2 : cur === 'koledar' ? 3 : 0; // analiza šteje kot 0
+      const curIdx =
+        cur === 'prioritetniNalogi' ? 1 :
+        cur === 'kapacitete' ? 2 :
+        cur === 'koledar' ? 3 :
+        cur === 'izsekovalnaOrodja' ? 4 :
+        0; // analiza šteje kot 0
       const nextIdx = e.shiftKey ? (curIdx - 1 + tabKeys.length) % tabKeys.length : (curIdx + 1) % tabKeys.length;
       const nextTab = tabKeys[nextIdx];
       e.preventDefault();
@@ -5508,6 +5519,18 @@ ${totalsHtml}
               📅 Koledar
             </button>
             <button
+              ref={izsekovalnaOrodjaTabRef}
+              onClick={() => setAktivniZavihek('izsekovalnaOrodja')}
+              tabIndex={0}
+              className={`px-6 py-3 font-medium text-sm border-b-2 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                aktivniZavihek === 'izsekovalnaOrodja'
+                  ? 'border-blue-500 text-blue-600 bg-blue-50'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              ✂️ Izsekovalna orodja
+            </button>
+            <button
               onClick={() => {
                 const now = Date.now();
                 const leftAt = analizaLeftAtRef.current || 0;
@@ -6272,6 +6295,16 @@ ${totalsHtml}
           onScroll={(e) => { scrollPosRef.current['koledar'] = (e.currentTarget as HTMLDivElement).scrollTop; }}
         >
           <Koledar nalogi={vsiNalogiIzracunani} closedTasks={closedTasks} />
+        </div>
+      )}
+
+      {aktivniZavihek === 'izsekovalnaOrodja' && (
+        <div
+          ref={izsekovalnaOrodjaScrollRef}
+          className="flex-1 min-h-0 overflow-y-auto"
+          onScroll={(e) => { scrollPosRef.current['izsekovalnaOrodja'] = (e.currentTarget as HTMLDivElement).scrollTop; }}
+        >
+          <IzsekovalnaOrodja />
         </div>
       )}
 
