@@ -265,52 +265,149 @@ export default function IzsekovalnaOrodja() {
     setErr('');
     try {
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array' });
-      const sheetName = wb.SheetNames && wb.SheetNames[0];
-      if (!sheetName) throw new Error('Excel nima listov.');
-      const ws = wb.Sheets[sheetName];
-      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false }) as any[][];
-      if (!Array.isArray(aoa) || aoa.length === 0) throw new Error('Excel je prazen.');
+      const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+      if (!wb.SheetNames || wb.SheetNames.length === 0) throw new Error('Excel nima listov.');
 
-      const looksLikeHeader = (row: any[]) => {
-        const s = (row || []).map((c) => String(c ?? '').toLowerCase()).join(' ');
-        return s.includes('opis') && (s.includes('strank') || s.includes('kupec') || s.includes('velikost'));
+      const norm = (v: any) =>
+        String(v ?? '')
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase()
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const extractInts = (v: any): number[] => {
+        const s = String(v ?? '').replace(/\u00A0/g, ' ').trim(); // NBSP
+        if (!s) return [];
+        const matches = s.match(/\d+/g) || [];
+        return matches.map((m) => Number(m)).filter((n) => Number.isFinite(n));
       };
 
-      let startIdx = 0;
-      if (looksLikeHeader(aoa[0])) startIdx = 1;
+      const extractFirstInt = (v: any): number | null => {
+        const ints = extractInts(v);
+        return ints.length > 0 ? ints[0] : null;
+      };
+
+      const looksLikeHeaderRow = (row: any[]) => {
+        const s = (row || []).map((c) => norm(c)).join(' ');
+        // dovolj je, da najdemo več ključnih besed
+        const hits =
+          (s.includes('opis') ? 1 : 0) +
+          (s.includes('velikost') ? 1 : 0) +
+          (s.includes('leto') ? 1 : 0) +
+          (s.includes('stranka') || s.includes('kupec') ? 1 : 0) +
+          (s.includes('komentar') ? 1 : 0) +
+          (s.includes('nalog') ? 1 : 0);
+        return hits >= 3;
+      };
+
+      // Izberi sheet: tistega, ki najbolj izgleda kot tabela (največ header keywordov v prvih vrsticah)
+      const sheets = wb.SheetNames.map((name) => {
+        const ws = wb.Sheets[name];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as any[][];
+        const top = aoa.slice(0, 10);
+        let score = 0;
+        for (const r of top) if (looksLikeHeaderRow(r)) score += 3;
+        // dodatno: koliko ne-praznih vrstic
+        const nonEmpty = aoa.filter((r) => (r || []).some((c) => String(c ?? '').trim() !== '')).length;
+        score += Math.min(5, Math.floor(nonEmpty / 20));
+        return { name, ws, aoa, score, nonEmpty };
+      });
+      sheets.sort((a, b) => (b.score - a.score) || (b.nonEmpty - a.nonEmpty));
+      const best = sheets[0];
+      if (!best) throw new Error('Excel nima podatkov.');
+
+      const aoa = best.aoa || [];
+      if (!Array.isArray(aoa) || aoa.length === 0) throw new Error('Excel je prazen.');
+
+      // Najdi header row (če obstaja)
+      let headerIdx = -1;
+      for (let i = 0; i < Math.min(20, aoa.length); i++) {
+        if (looksLikeHeaderRow(aoa[i])) { headerIdx = i; break; }
+      }
+
+      const header = headerIdx >= 0 ? (aoa[headerIdx] || []) : [];
+      const idxOf = (pred: (h: string) => boolean): number => {
+        for (let i = 0; i < header.length; i++) {
+          const h = norm(header[i]);
+          if (pred(h)) return i;
+        }
+        return -1;
+      };
+      const idxZap = idxOf((h) => h.includes('zap') || h.includes('stanca') || h.includes('stanca') || h.includes('st.')); // fallback
+      const idxNalog = idxOf((h) => h.includes('nalog'));
+      const idxOpis = idxOf((h) => h === 'opis' || h.includes('opis'));
+      const idxVel = idxOf((h) => h.includes('velikost'));
+      const idxLeto = idxOf((h) => h.includes('leto'));
+      const idxStranka = idxOf((h) => h.includes('stranka') || h.includes('kupec'));
+      const idxKomentar = idxOf((h) => h.includes('komentar'));
+
+      const startIdx = headerIdx >= 0 ? headerIdx + 1 : 0;
 
       const parsed: any[] = [];
+      const sampleRows: any[] = [];
+
       for (let i = startIdx; i < aoa.length; i++) {
         const r = aoa[i] || [];
-        const zapRaw = r[0];
-        const nalogRaw = r[1];
-        const zap = Number(String(zapRaw ?? '').trim());
-        if (!Number.isFinite(zap) || zap <= 0) continue;
-        const stevilkaNaloga = (() => {
-          const s = String(nalogRaw ?? '').trim();
-          if (!s) return null;
-          const n = Number(s);
-          return Number.isFinite(n) ? n : null;
+        if (!(r || []).some((c) => String(c ?? '').trim() !== '')) continue;
+        if (sampleRows.length < 6) sampleRows.push(r.slice(0, 8));
+
+        // 1) Preberi "zaporedna" + "nalog": podpri oba formata:
+        // - zap in nalog v ločenih stolpcih
+        // - oba števila v isti celici (npr. "15 67512")
+        const cellZapOrBoth = (idxZap >= 0 ? r[idxZap] : r[0]);
+        const cellNalog = (idxNalog >= 0 ? r[idxNalog] : r[1]);
+
+        const both = extractInts(cellZapOrBoth);
+        let zap: number | null = null;
+        let stevilkaNaloga: number | null = null;
+        if (both.length >= 2) {
+          zap = both[0];
+          stevilkaNaloga = both[1];
+        } else {
+          zap = extractFirstInt(cellZapOrBoth);
+          // nalog je lahko v 2. stolpcu ali prazen
+          const n = extractFirstInt(cellNalog);
+          stevilkaNaloga = n != null ? n : null;
+        }
+
+        if (zap == null || !Number.isFinite(zap) || zap <= 0) continue;
+
+        const getCell = (idx: number, fallbackIdx: number) => {
+          if (idx >= 0) return r[idx];
+          return r[fallbackIdx];
+        };
+
+        const opis = String(getCell(idxOpis, 2) ?? '').trim();
+        const vel = String(getCell(idxVel, 3) ?? '').trim();
+        const leto = (() => {
+          const v = getCell(idxLeto, 4);
+          const n = extractFirstInt(v);
+          return n != null && n > 0 ? n : null;
         })();
+        const stranka = String(getCell(idxStranka, 5) ?? '').trim();
+        const komentar = String(getCell(idxKomentar, 6) ?? '').trim();
 
         parsed.push({
           ZaporednaStevilka: zap,
           StevilkaNaloga: stevilkaNaloga,
-          Opis: String(r[2] ?? '').trim(),
-          VelikostKoncnegaProdukta: String(r[3] ?? '').trim(),
-          LetoIzdelave: (() => {
-            const s = String(r[4] ?? '').trim();
-            if (!s) return null;
-            const n = Number(s);
-            return Number.isFinite(n) ? n : null;
-          })(),
-          StrankaNaziv: String(r[5] ?? '').trim(),
-          Komentar: String(r[6] ?? '').trim(),
+          Opis: opis,
+          VelikostKoncnegaProdukta: vel,
+          LetoIzdelave: leto,
+          StrankaNaziv: stranka,
+          Komentar: komentar,
         });
       }
 
-      if (parsed.length === 0) throw new Error('Nisem našel nobene vrstice (pričakujem zap. št. v 1. stolpcu).');
+      if (parsed.length === 0) {
+        const sheetInfo = `Sheet: "${best.name}"`;
+        const sample = sampleRows.map((r) => r.map((c) => String(c ?? '')).join(' | ')).join('\n');
+        throw new Error(
+          `Nisem našel nobene vrstice za uvoz. ${sheetInfo}. ` +
+          `Preveri, da ima tabela v 1. stolpcu zap. št. ali zapis "zap.št nalog" (npr. "15 67512").\n` +
+          (sample ? `Primer prvih vrstic:\n${sample}` : '')
+        );
+      }
 
       const res = await fetch('/api/izsekovalna-orodja/import', {
         method: 'POST',
