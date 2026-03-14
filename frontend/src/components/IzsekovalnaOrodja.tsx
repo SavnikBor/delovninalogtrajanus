@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
 
 type KupecMin = { KupecID: number; Naziv: string };
 
@@ -69,6 +70,8 @@ export default function IzsekovalnaOrodja() {
   const [saving, setSaving] = useState(false);
   const [deleteBusyId, setDeleteBusyId] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const strankaWrapRef = useRef<HTMLDivElement | null>(null);
   const [strankaDropdownOpen, setStrankaDropdownOpen] = useState(false);
@@ -257,6 +260,83 @@ export default function IzsekovalnaOrodja() {
     }
   };
 
+  const doImport = async (file: File) => {
+    setImportBusy(true);
+    setErr('');
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const sheetName = wb.SheetNames && wb.SheetNames[0];
+      if (!sheetName) throw new Error('Excel nima listov.');
+      const ws = wb.Sheets[sheetName];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false }) as any[][];
+      if (!Array.isArray(aoa) || aoa.length === 0) throw new Error('Excel je prazen.');
+
+      const looksLikeHeader = (row: any[]) => {
+        const s = (row || []).map((c) => String(c ?? '').toLowerCase()).join(' ');
+        return s.includes('opis') && (s.includes('strank') || s.includes('kupec') || s.includes('velikost'));
+      };
+
+      let startIdx = 0;
+      if (looksLikeHeader(aoa[0])) startIdx = 1;
+
+      const parsed: any[] = [];
+      for (let i = startIdx; i < aoa.length; i++) {
+        const r = aoa[i] || [];
+        const zapRaw = r[0];
+        const nalogRaw = r[1];
+        const zap = Number(String(zapRaw ?? '').trim());
+        if (!Number.isFinite(zap) || zap <= 0) continue;
+        const stevilkaNaloga = (() => {
+          const s = String(nalogRaw ?? '').trim();
+          if (!s) return null;
+          const n = Number(s);
+          return Number.isFinite(n) ? n : null;
+        })();
+
+        parsed.push({
+          ZaporednaStevilka: zap,
+          StevilkaNaloga: stevilkaNaloga,
+          Opis: String(r[2] ?? '').trim(),
+          VelikostKoncnegaProdukta: String(r[3] ?? '').trim(),
+          LetoIzdelave: (() => {
+            const s = String(r[4] ?? '').trim();
+            if (!s) return null;
+            const n = Number(s);
+            return Number.isFinite(n) ? n : null;
+          })(),
+          StrankaNaziv: String(r[5] ?? '').trim(),
+          Komentar: String(r[6] ?? '').trim(),
+        });
+      }
+
+      if (parsed.length === 0) throw new Error('Nisem našel nobene vrstice (pričakujem zap. št. v 1. stolpcu).');
+
+      const res = await fetch('/api/izsekovalna-orodja/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: parsed }),
+      });
+      const ct = (res.headers.get('content-type') || '').toLowerCase();
+      const data = ct.includes('application/json') ? await res.json().catch(() => null) : null;
+      if (!res.ok || !(data && data.ok)) {
+        const msg =
+          (data && (data.error || data.details)) ? String(data.error || data.details) :
+          `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
+      setToast(`Uvoz: dodano ${data.inserted ?? 0}, preskočeno ${data.skipped ?? 0}.`);
+      await load();
+    } catch (e: any) {
+      setErr(e?.message ? String(e.message) : 'Napaka pri uvozu.');
+    } finally {
+      setImportBusy(false);
+      try {
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } catch {}
+    }
+  };
+
   const onStrankaChange = (v: string) => {
     setForm((prev) => ({ ...prev, StrankaNaziv: v, KupecID: null }));
     setStrankaDropdownOpen(true);
@@ -269,6 +349,25 @@ export default function IzsekovalnaOrodja() {
 
   const headerRight = (
     <div className="flex items-center gap-2">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files && e.target.files[0];
+          if (f) doImport(f);
+        }}
+      />
+      <button
+        type="button"
+        className="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 text-sm disabled:opacity-50"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={importBusy}
+        title="Uvoz iz Excela (prvi list; stolpci: zap.št, nalog, opis, velikost, leto, stranka, komentar)"
+      >
+        {importBusy ? 'Uvažam…' : 'Uvozi iz Excela'}
+      </button>
       <button
         type="button"
         className="px-3 py-1.5 rounded bg-gray-200 hover:bg-gray-300 text-sm"
