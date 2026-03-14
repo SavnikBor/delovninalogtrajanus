@@ -1025,6 +1025,80 @@ app.post('/api/izsekovalna-orodja', async (req, res) => {
   }
 });
 
+// POST: uvoz iz Excela/CSV (insert-only; obstoječih ne spreminjaj)
+// Body: { rows: Array<{ ZaporednaStevilka, StevilkaNaloga, Opis, VelikostKoncnegaProdukta, LetoIzdelave, StrankaNaziv, Komentar }> } ali kar array.
+//
+// Pomembno: ta ruta mora biti pred /api/izsekovalna-orodja/:id, sicer Express ujame "import" kot :id.
+app.post('/api/izsekovalna-orodja/import', async (req, res) => {
+  let pool = null;
+  try {
+    const body = req.body || {};
+    const rows = Array.isArray(body) ? body : (Array.isArray(body.rows) ? body.rows : []);
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return res.status(400).json({ ok: false, error: 'Manjka rows (array).' });
+    }
+    if (rows.length > 5000) {
+      return res.status(413).json({ ok: false, error: 'Preveč vrstic (max 5000 na uvoz).' });
+    }
+    const cfg = buildDbConfig(IZSEK_DB_NAME);
+    pool = await new sql.ConnectionPool(cfg).connect();
+    await ensureIzsekovalnaOrodjaSchema(pool);
+    await maybeSeedIzsekovalnaOrodja(pool);
+
+    const tx = new sql.Transaction(pool);
+    await tx.begin();
+    let inserted = 0;
+    let skipped = 0;
+    try {
+      for (const raw of rows) {
+        const zap = Number(raw?.ZaporednaStevilka ?? raw?.zaporednaStevilka ?? raw?.st ?? NaN);
+        if (!Number.isFinite(zap) || zap <= 0) { skipped++; continue; }
+        const stevilkaNalogaRaw = raw?.StevilkaNaloga ?? raw?.stevilkaNaloga ?? raw?.nalog ?? null;
+        const stevilkaNaloga = (stevilkaNalogaRaw == null || String(stevilkaNalogaRaw).trim() === '') ? null : (Number(stevilkaNalogaRaw) || null);
+        const letoRaw = raw?.LetoIzdelave ?? raw?.letoIzdelave ?? null;
+        const leto = (letoRaw == null || String(letoRaw).trim() === '') ? null : (Number(letoRaw) || null);
+
+        const r = new sql.Request(tx);
+        r.input('ZaporednaStevilka', sql.Int, zap);
+        r.input('StevilkaNaloga', sql.Int, stevilkaNaloga);
+        r.input('Opis', sql.NVarChar(500), (raw?.Opis ?? '').toString());
+        r.input('Velikost', sql.NVarChar(100), (raw?.VelikostKoncnegaProdukta ?? raw?.Velikost ?? '').toString());
+        r.input('LetoIzdelave', sql.Int, leto);
+        r.input('KupecID', sql.Int, raw?.KupecID != null ? Number(raw.KupecID) : null);
+        r.input('StrankaNaziv', sql.NVarChar(255), (raw?.StrankaNaziv ?? raw?.Stranka ?? '').toString());
+        r.input('Komentar', sql.NVarChar(sql.MAX), (raw?.Komentar ?? raw?.komentar ?? '').toString());
+
+        const ins = await r.query(`
+          DECLARE @didInsert INT = 0;
+          IF NOT EXISTS (SELECT 1 FROM dbo.IzsekovalnoOrodje WHERE ZaporednaStevilka=@ZaporednaStevilka)
+          BEGIN
+            INSERT INTO dbo.IzsekovalnoOrodje
+              (ZaporednaStevilka, StevilkaNaloga, Opis, VelikostKoncnegaProdukta, LetoIzdelave, KupecID, StrankaNaziv, Komentar)
+            VALUES
+              (@ZaporednaStevilka, @StevilkaNaloga, @Opis, @Velikost, @LetoIzdelave, @KupecID, @StrankaNaziv, @Komentar);
+            SET @didInsert = 1;
+          END
+          SELECT @didInsert AS didInsert;
+        `);
+        const did = ins.recordset && ins.recordset[0] ? Number(ins.recordset[0].didInsert) : 0;
+        if (did === 1) inserted++;
+        else skipped++;
+      }
+      await tx.commit();
+    } catch (e) {
+      try { await tx.rollback(); } catch {}
+      throw e;
+    }
+
+    return res.json({ ok: true, inserted, skipped, total: rows.length });
+  } catch (e) {
+    console.error('Napaka POST /api/izsekovalna-orodja/import:', e);
+    return res.status(500).json({ ok: false, error: 'Napaka pri uvozu izsekovalnih orodij', details: e && e.message ? e.message : String(e) });
+  } finally {
+    try { if (pool) await pool.close(); } catch {}
+  }
+});
+
 // POST: posodobi izsekovalno orodje (namerno POST, enako kot pri /api/kupec/:id)
 app.post('/api/izsekovalna-orodja/:id', async (req, res) => {
   let pool = null;
@@ -1095,78 +1169,6 @@ app.post('/api/izsekovalna-orodja/:id', async (req, res) => {
   } catch (e) {
     console.error('Napaka POST /api/izsekovalna-orodja/:id:', e);
     return res.status(500).json({ ok: false, error: 'Napaka pri posodobitvi izsekovalnega orodja', details: e && e.message ? e.message : String(e) });
-  } finally {
-    try { if (pool) await pool.close(); } catch {}
-  }
-});
-
-// POST: uvoz iz Excela/CSV (insert-only; obstoječih ne spreminjaj)
-// Body: { rows: Array<{ ZaporednaStevilka, StevilkaNaloga, Opis, VelikostKoncnegaProdukta, LetoIzdelave, StrankaNaziv, Komentar }> } ali kar array.
-app.post('/api/izsekovalna-orodja/import', async (req, res) => {
-  let pool = null;
-  try {
-    const body = req.body || {};
-    const rows = Array.isArray(body) ? body : (Array.isArray(body.rows) ? body.rows : []);
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return res.status(400).json({ ok: false, error: 'Manjka rows (array).' });
-    }
-    if (rows.length > 5000) {
-      return res.status(413).json({ ok: false, error: 'Preveč vrstic (max 5000 na uvoz).' });
-    }
-    const cfg = buildDbConfig(IZSEK_DB_NAME);
-    pool = await new sql.ConnectionPool(cfg).connect();
-    await ensureIzsekovalnaOrodjaSchema(pool);
-    await maybeSeedIzsekovalnaOrodja(pool);
-
-    const tx = new sql.Transaction(pool);
-    await tx.begin();
-    let inserted = 0;
-    let skipped = 0;
-    try {
-      for (const raw of rows) {
-        const zap = Number(raw?.ZaporednaStevilka ?? raw?.zaporednaStevilka ?? raw?.st ?? NaN);
-        if (!Number.isFinite(zap) || zap <= 0) { skipped++; continue; }
-        const stevilkaNalogaRaw = raw?.StevilkaNaloga ?? raw?.stevilkaNaloga ?? raw?.nalog ?? null;
-        const stevilkaNaloga = (stevilkaNalogaRaw == null || String(stevilkaNalogaRaw).trim() === '') ? null : (Number(stevilkaNalogaRaw) || null);
-        const letoRaw = raw?.LetoIzdelave ?? raw?.letoIzdelave ?? null;
-        const leto = (letoRaw == null || String(letoRaw).trim() === '') ? null : (Number(letoRaw) || null);
-
-        const r = new sql.Request(tx);
-        r.input('ZaporednaStevilka', sql.Int, zap);
-        r.input('StevilkaNaloga', sql.Int, stevilkaNaloga);
-        r.input('Opis', sql.NVarChar(500), (raw?.Opis ?? '').toString());
-        r.input('Velikost', sql.NVarChar(100), (raw?.VelikostKoncnegaProdukta ?? raw?.Velikost ?? '').toString());
-        r.input('LetoIzdelave', sql.Int, leto);
-        r.input('KupecID', sql.Int, raw?.KupecID != null ? Number(raw.KupecID) : null);
-        r.input('StrankaNaziv', sql.NVarChar(255), (raw?.StrankaNaziv ?? raw?.Stranka ?? '').toString());
-        r.input('Komentar', sql.NVarChar(sql.MAX), (raw?.Komentar ?? raw?.komentar ?? '').toString());
-
-        const ins = await r.query(`
-          DECLARE @didInsert INT = 0;
-          IF NOT EXISTS (SELECT 1 FROM dbo.IzsekovalnoOrodje WHERE ZaporednaStevilka=@ZaporednaStevilka)
-          BEGIN
-            INSERT INTO dbo.IzsekovalnoOrodje
-              (ZaporednaStevilka, StevilkaNaloga, Opis, VelikostKoncnegaProdukta, LetoIzdelave, KupecID, StrankaNaziv, Komentar)
-            VALUES
-              (@ZaporednaStevilka, @StevilkaNaloga, @Opis, @Velikost, @LetoIzdelave, @KupecID, @StrankaNaziv, @Komentar);
-            SET @didInsert = 1;
-          END
-          SELECT @didInsert AS didInsert;
-        `);
-        const did = ins.recordset && ins.recordset[0] ? Number(ins.recordset[0].didInsert) : 0;
-        if (did === 1) inserted++;
-        else skipped++;
-      }
-      await tx.commit();
-    } catch (e) {
-      try { await tx.rollback(); } catch {}
-      throw e;
-    }
-
-    return res.json({ ok: true, inserted, skipped, total: rows.length });
-  } catch (e) {
-    console.error('Napaka POST /api/izsekovalna-orodja/import:', e);
-    return res.status(500).json({ ok: false, error: 'Napaka pri uvozu izsekovalnih orodij', details: e && e.message ? e.message : String(e) });
   } finally {
     try { if (pool) await pool.close(); } catch {}
   }
