@@ -37,7 +37,7 @@
 - **Formula**: `Math.ceil((število_kosov / 30) * 0.03 * 10) / 10`
 
 ### Razrez
-- **Formula**: `Math.ceil((število_pol / 30) / 10 * 10) / 10`
+- **Formula**: `(število_pol/100)/15`
 
 ## Topli tisk, reliefni tisk, globoki tisk
 - **Formula**: `Math.ceil(8 + 1 + število_kosov / 1000 * 10) / 10`
@@ -66,13 +66,13 @@
 - **Spirala**: `Math.ceil(število_kosov / 100 * 10) / 10`
 - **Vezano z žico**: `Math.ceil(število_kosov / 50 * 10) / 10`
 - **Broširano**: `Math.ceil(število_kosov / 200 * 10) / 10`
-- **Šivano**: `Math.ceil(število_kosov / 100 * 10) / 10`
+- **Trda vezava**: `Math.ceil(število_kosov / 100 * 10) / 10`
 
 ## Vrtanje luknje
 - **Formula**: `Math.ceil(število_kosov / 1000 * 10) / 10`
 
 ## Perforacija
-- **Formula**: `Math.ceil(število_kosov / 500 * 10) / 10`
+- **Formula**: `0.5 + število_pol/1000`
 
 ## Lokacije formul v kodi
 

@@ -1,0 +1,136 @@
+{
+  "employees": [
+    {
+      "name": "Bor",
+      "proizvodnja": true,
+      "administracija": true,
+      "proizvodnjaPct": 5,
+      "administracijaPct": 95
+    },
+    {
+      "name": "Tomaž",
+      "proizvodnja": true,
+      "administracija": true,
+      "proizvodnjaPct": 20,
+      "administracijaPct": 80
+    },
+    {
+      "name": "Rok",
+      "proizvodnja": true,
+      "administracija": true,
+      "proizvodnjaPct": 5,
+      "administracijaPct": 95
+    },
+    {
+      "name": "Sebastjan",
+      "proizvodnja": true,
+      "administracija": true,
+      "proizvodnjaPct": 90,
+      "administracijaPct": 10
+    },
+    {
+      "name": "Stane",
+      "proizvodnja": true,
+      "administracija": true,
+      "proizvodnjaPct": 90,
+      "administracijaPct": 10
+    },
+    {
+      "name": "Aleksander",
+      "proizvodnja": true,
+      "administracija": false,
+      "proizvodnjaPct": 100,
+      "administracijaPct": 0
+    },
+    {
+      "name": "Ajda",
+      "proizvodnja": true,
+      "administracija": false,
+      "proizvodnjaPct": 100,
+      "administracijaPct": 0
+    },
+    {
+      "name": "Nina",
+      "proizvodnja": false,
+      "administracija": true,
+      "proizvodnjaPct": 0,
+      "administracijaPct": 100
+    },
+    {
+      "name": "Polona",
+      "proizvodnja": false,
+      "administracija": true,
+      "proizvodnjaPct": 0,
+      "administracijaPct": 100
+    },
+    {
+      "name": "",
+      "proizvodnja": false,
+      "administracija": false,
+      "proizvodnjaPct": 0,
+      "administracijaPct": 0
+    },
+    {
+      "name": "",
+      "proizvodnja": false,
+      "administracija": false,
+      "proizvodnjaPct": 0,
+      "administracijaPct": 0
+    },
+    {
+      "name": "",
+      "proizvodnja": false,
+      "administracija": false,
+      "proizvodnjaPct": 0,
+      "administracijaPct": 0
+    },
+    {
+      "name": "",
+      "proizvodnja": false,
+      "administracija": false,
+      "proizvodnjaPct": 0,
+      "administracijaPct": 0
+    },
+    {
+      "name": "",
+      "proizvodnja": false,
+      "administracija": false,
+      "proizvodnjaPct": 0,
+      "administracijaPct": 0
+    },
+    {
+      "name": "",
+      "proizvodnja": false,
+      "administracija": false,
+      "proizvodnjaPct": 0,
+      "administracijaPct": 0
+    }
+  ],
+  "bookings": {
+    "2026-01-21": {
+      "kolektivni": false,
+      "entries": [
+        {
+          "name": "Tomaž",
+          "kind": "bolniska"
+        }
+      ]
+    },
+    "2026-12-31": {
+      "kolektivni": true,
+      "entries": []
+    },
+    "2026-12-24": {
+      "kolektivni": true,
+      "entries": []
+    },
+    "2026-06-26": {
+      "kolektivni": true,
+      "entries": []
+    },
+    "2026-01-26": {
+      "kolektivni": true,
+      "entries": []
+    }
+  }
+}

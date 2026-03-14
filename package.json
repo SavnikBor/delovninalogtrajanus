@@ -3,9 +3,15 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev": "concurrently \"npm run server\" \"npm run client:https\"",
+    "dev:http": "concurrently \"npm run server\" \"npm run client\"",
+    "dev:https": "concurrently \"npm run server\" \"npm run client:https\"",
+    "dev:restart": "npx --yes kill-port 5173 5174 5000 && npm run dev",
     "server": "cd backend && node server.js",
-    "client": "cd frontend && npm run dev"
+    "client": "cd frontend && npm run dev:http",
+    "client:https": "cd frontend && npm run dev:https",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && node server.js"
   },
   "keywords": [],
   "author": "",

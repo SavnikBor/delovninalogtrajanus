@@ -4,14 +4,19 @@ interface SeznamNalogaProps {
   nalogi: any[];
   onIzberi: (nalog: any) => void;
   onKopiraj: (nalog: any) => void;
+  selectedStevilkaNaloga?: number;
   getPrioritetaBarva?: (prioriteta: number) => string;
   closedTasks?: Array<{ stevilkaNaloga: number; taskType: string }>;
   prioritetaMapa?: Map<number, number>;
+  onPrioritetaClick?: (stevilkaNaloga: number) => void;
   onYearFilterChange?: (year: number) => void;
   initialYear?: number;
+  scrollToStevilkaNaloga?: { id: number; ts: number } | null;
+  initialListScrollTop?: number;
+  onListScrollTopChange?: (scrollTop: number) => void;
 }
 
-const SeznamNaloga: React.FC<SeznamNalogaProps> = ({ nalogi, onIzberi, onKopiraj, getPrioritetaBarva, closedTasks = [], prioritetaMapa, onYearFilterChange, initialYear }) => {
+const SeznamNaloga: React.FC<SeznamNalogaProps> = ({ nalogi, onIzberi, onKopiraj, selectedStevilkaNaloga, getPrioritetaBarva, closedTasks = [], prioritetaMapa, onPrioritetaClick, onYearFilterChange, initialYear, scrollToStevilkaNaloga, initialListScrollTop, onListScrollTopChange }) => {
   // Debug: izpiši informacije o prioritetaMapa
   console.log('SeznamNaloga render:', {
     prioritetaMapaSize: prioritetaMapa?.size,
@@ -41,6 +46,25 @@ const SeznamNaloga: React.FC<SeznamNalogaProps> = ({ nalogi, onIzberi, onKopiraj
   useEffect(() => {
     // To bo povzročilo ponovno izračun prioritet
   }, [closedTasks]);
+
+  const pocistiFiltre = () => {
+    setFilterStevilka('');
+    setFilterNarocnik('');
+    setFilterPredmet('');
+    setFilterRazno('');
+    setStatusFilter('vse');
+  };
+
+  // ESC: počisti filtre (številka/naročnik/predmet/razno + status -> vse)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        pocistiFiltre();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // Funkcija za preverjanje ali je dodelava zaprta
   const isTaskClosed = (stevilkaNaloga: number, taskType: string): boolean => {
@@ -157,7 +181,15 @@ const SeznamNaloga: React.FC<SeznamNalogaProps> = ({ nalogi, onIzberi, onKopiraj
   const filtriraniNalogi = useMemo(() => {
     return nalogi.filter(n => {
       const stevilkaMatch = filterStevilka ? String(n.stevilkaNaloga).includes(filterStevilka) : true;
-      const narocnikRaw = (n.podatki?.kupec?.Naziv) || (n.podatki?.KupecNaziv) || '';
+      const narocnikRaw =
+        (n.podatki?.kupec?.Naziv) ||
+        (n.podatki?.kupec?.naziv) ||
+        (n.podatki?.KupecNaziv) ||
+        (n.podatki?.kupecNaziv) ||
+        (n.kupecNaziv) ||
+        (n.kupec?.Naziv) ||
+        (n.Naziv) ||
+        '';
       const narocnik = narocnikRaw.toString().trim().replace(/^[,\s-]+|[,\s-]+$/g, '');
       const narocnikMatch = filterNarocnik ? narocnik.toLowerCase().includes(filterNarocnik.toLowerCase()) : true;
       const predmet1 = (n.podatki?.tisk?.tisk1?.predmet) || (n.podatki?.Predmet1) || '';
@@ -346,12 +378,31 @@ const SeznamNaloga: React.FC<SeznamNalogaProps> = ({ nalogi, onIzberi, onKopiraj
     let konecRoka = new Date(datumRoka);
     
     // Nastavi konec roka z uro
-    if (nalog.podatki?.rokIzdelaveUra) {
-      const [ure, minute] = nalog.podatki.rokIzdelaveUra.split(':').map(Number);
-      konecRoka.setHours(ure, minute, 0, 0);
-    } else {
-      konecRoka.setHours(15, 0, 0, 0);
-    }
+    const normalizirajUro = (ura: any): string => {
+      const s = String(ura || '').trim();
+      const m = s.match(/^(\d{1,2}):(\d{2})/);
+      if (!m) return '';
+      const hh = String(Math.min(23, Math.max(0, parseInt(m[1], 10)))).padStart(2, '0');
+      const mm = String(Math.min(59, Math.max(0, parseInt(m[2], 10)))).padStart(2, '0');
+      return `${hh}:${mm}`;
+    };
+    const clampUraNaDelavnik = (hh: number, mm: number): string => {
+      // Delavnik: 07:00–15:00
+      if (!Number.isFinite(hh) || !Number.isFinite(mm)) return '';
+      if (hh < 7) return '07:00';
+      if (hh > 15) return '15:00';
+      if (hh === 15 && mm > 0) return '15:00';
+      const HH = String(hh).padStart(2, '0');
+      const MM = String(mm).padStart(2, '0');
+      return `${HH}:${MM}`;
+    };
+    const uraStr = (() => {
+      const fromPodatkiRaw = normalizirajUro(nalog.podatki?.rokIzdelaveUra);
+      if (fromPodatkiRaw) return clampUraNaDelavnik(parseInt(fromPodatkiRaw.slice(0, 2), 10), parseInt(fromPodatkiRaw.slice(3, 5), 10));
+      return '15:00';
+    })();
+    const [ure, minute] = uraStr.split(':').map(Number);
+    konecRoka.setHours(ure, minute, 0, 0);
     
     // Določi začetek dela - uporabi trenutni čas
     const trenutniCas = new Date();
@@ -447,6 +498,13 @@ const SeznamNaloga: React.FC<SeznamNalogaProps> = ({ nalogi, onIzberi, onKopiraj
     return arr;
   }, [filtriraniNalogi, sortKey, sortAsc, closedTasks, prioritetaMapa]);
 
+  const scrollToIndex = useMemo(() => {
+    const id = Number(scrollToStevilkaNaloga?.id || 0);
+    if (!id) return null;
+    const idx = sortiraniNalogi.findIndex(n => Number(n?.stevilkaNaloga) === id);
+    return idx >= 0 ? idx : null;
+  }, [sortiraniNalogi, scrollToStevilkaNaloga?.id, scrollToStevilkaNaloga?.ts]);
+
   // Debug: izpiši informacije o prioritetaMapa dependency array
   console.log('SeznamNaloga sortiraniNalogi useMemo dependency array:', {
     filtriraniNalogiLength: filtriraniNalogi.length,
@@ -456,19 +514,32 @@ const SeznamNaloga: React.FC<SeznamNalogaProps> = ({ nalogi, onIzberi, onKopiraj
     prioritetaMapaSize: prioritetaMapa?.size
   });
 
+  const gridCols =
+    'grid grid-cols-[40px_minmax(0,1.25fr)_minmax(0,1.25fr)_minmax(0,1.25fr)_80px_44px_84px]';
+
   return (
-    <div className="w-full max-w-md bg-white border-r flex flex-col" style={{ height: '100vh' }}>
+    <div className="w-full bg-white border-r flex flex-col min-w-0 h-full" style={{ height: '100%' }}>
       <div className="p-2 border-b bg-gray-50">
-        <input className="mb-1 w-full px-2 py-1 border rounded text-sm" placeholder="Št. naloga" value={filterStevilka} onChange={e => setFilterStevilka(e.target.value)} />
-        <input className="mb-1 w-full px-2 py-1 border rounded text-sm" placeholder="Naročnik" value={filterNarocnik} onChange={e => setFilterNarocnik(e.target.value)} />
-        <input className="mb-1 w-full px-2 py-1 border rounded text-sm" placeholder="Predmet" value={filterPredmet} onChange={e => setFilterPredmet(e.target.value)} />
-        <input className="w-full px-2 py-1 border rounded text-sm" placeholder="Razno (fulltext)" value={filterRazno} onChange={e => setFilterRazno(e.target.value)} />
+        <div className="grid grid-cols-2 gap-1">
+          <input className="w-full px-2 py-1 border rounded text-sm" placeholder="Št. naloga" value={filterStevilka} onChange={e => setFilterStevilka(e.target.value)} />
+          <input className="w-full px-2 py-1 border rounded text-sm" placeholder="Naročnik" value={filterNarocnik} onChange={e => setFilterNarocnik(e.target.value)} />
+          <input className="w-full px-2 py-1 border rounded text-sm" placeholder="Predmet" value={filterPredmet} onChange={e => setFilterPredmet(e.target.value)} />
+          <input className="w-full px-2 py-1 border rounded text-sm" placeholder="Razno (fulltext)" value={filterRazno} onChange={e => setFilterRazno(e.target.value)} />
+        </div>
       </div>
       <div className="flex flex-row gap-2 p-2 bg-gray-50 border-b text-xs items-center">
         <button onClick={() => setStatusFilter('vse')}>Vse</button>
         <button onClick={() => setStatusFilter('v_delu')}>V delu</button>
         <button onClick={() => setStatusFilter('zakljucen')}>Tisk zak.</button>
         <button onClick={() => setStatusFilter('dobavljeno')}>Dob.</button>
+        <button
+          type="button"
+          onClick={pocistiFiltre}
+          className="px-2 py-1 border rounded text-xs bg-white hover:bg-gray-100"
+          title="Počisti filtre (deluje tudi tipka ESC)"
+        >
+          Počisti filt.
+        </button>
         <div className="ml-auto flex items-center gap-1">
           <label htmlFor="filterLeto" className="text-xs">Leto:</label>
           <select
@@ -488,17 +559,24 @@ const SeznamNaloga: React.FC<SeznamNalogaProps> = ({ nalogi, onIzberi, onKopiraj
           </select>
         </div>
       </div>
-      <div className="flex flex-row items-center gap-1 text-xs font-semibold bg-gray-100 border-b px-1 py-1">
-        <span className="w-10 cursor-pointer" onClick={() => { setSortKey('stevilka'); setSortAsc(k => sortKey === 'stevilka' ? !k : false); }}>Zapor. št.</span>
-        <span className="flex-1 w-36 cursor-pointer" onClick={() => { setSortKey('narocnik'); setSortAsc(k => sortKey === 'narocnik' ? !k : false); }}>Naročnik</span>
-        <span className="flex-1 w-36">Predmet 1</span>
-        <span className="flex-1 w-36">Predmet 2</span>
-        <span className="w-16 cursor-pointer" onClick={() => { setSortKey('datumNarocila'); setSortAsc(k => sortKey === 'datumNarocila' ? !k : false); }}>Datum odprtja</span>
-        <span className="w-8 cursor-pointer" onClick={() => { setSortKey('prioriteta'); setSortAsc(k => sortKey === 'prioriteta' ? !k : false); }}>Prioriteta</span>
-        <span className="w-12"></span>
+      <div className={`${gridCols} items-center text-xs font-semibold bg-gray-100 border-b px-1 py-1 overflow-x-hidden`}>
+        <span className="cursor-pointer" onClick={() => { setSortKey('stevilka'); setSortAsc(k => sortKey === 'stevilka' ? !k : false); }}>Zapor. št.</span>
+        <span className="min-w-0 cursor-pointer" onClick={() => { setSortKey('narocnik'); setSortAsc(k => sortKey === 'narocnik' ? !k : false); }}>Naročnik</span>
+        <span className="min-w-0">Predmet 1</span>
+        <span className="min-w-0">Predmet 2</span>
+        <span className="cursor-pointer" onClick={() => { setSortKey('datumNarocila'); setSortAsc(k => sortKey === 'datumNarocila' ? !k : false); }}>Datum odprtja</span>
+        <span className="cursor-pointer" onClick={() => { setSortKey('prioriteta'); setSortAsc(k => sortKey === 'prioriteta' ? !k : false); }}>Pr.</span>
+        <span className="text-right pr-1"> </span>
       </div>
       {/* Virtualiziran seznam za hitrost */}
-      <VirtualizedList items={sortiraniNalogi} rowHeight={28}>
+      <VirtualizedList
+        items={sortiraniNalogi}
+        rowHeight={32}
+        scrollToIndex={scrollToIndex}
+        scrollToTs={scrollToStevilkaNaloga?.ts}
+        initialScrollTop={initialListScrollTop}
+        onScrollTopChange={onListScrollTopChange}
+      >
         {(n: any, i: number) => {
           // Izračunaj index za izmenično barvanje po statusu
           let mintIndex = 0, redIndex = 0, whiteIndex = 0;
@@ -537,20 +615,54 @@ const SeznamNaloga: React.FC<SeznamNalogaProps> = ({ nalogi, onIzberi, onKopiraj
           return (
             <div
               key={n.stevilkaNaloga}
-              className={`border-b px-1 py-1 hover:bg-blue-50 cursor-pointer flex flex-row items-center gap-0 text-xs whitespace-nowrap ${rowClass}`}
+              className={`h-full box-border border-b px-1 py-1 hover:bg-blue-50 cursor-pointer ${gridCols} items-center text-xs leading-snug min-w-0 overflow-x-hidden overflow-y-hidden ${rowClass} ${
+                selectedStevilkaNaloga === n.stevilkaNaloga
+                  // Inset ring (znotraj vrstice), da ne "posega" v sosednje vrstice
+                  ? 'font-bold bg-blue-50 ring-2 ring-inset ring-blue-500'
+                  : ''
+              }`}
               onDoubleClick={() => onIzberi(n)}
               title="Dvojni klik za odpiranje naloga"
             >
-              <span className={`font-bold w-10 border-r border-gray-200 ${jeZakljucen ? 'text-red-700' : jeDobavljeno ? 'text-green-700' : 'text-blue-700'}`}>{n.stevilkaNaloga}</span>
-              <span className="text-gray-700 flex-1 truncate w-36 border-r border-gray-200">{((n.podatki?.kupec?.Naziv) || (n.podatki?.KupecNaziv) || '').toString().trim().replace(/^[,\s-]+|[,\s-]+$/g, '')}</span>
-              <span className={`text-gray-600 flex-1 truncate w-36 border-r border-gray-200 ${predmet1HalfClass}`}>{(n.podatki?.tisk?.tisk1?.predmet) || (n.podatki?.Predmet1) || ''}</span>
-              <span className={`text-gray-600 flex-1 truncate w-36 border-r border-gray-200 ${predmet2HalfClass}`}>{(n.podatki?.tisk?.tisk2?.predmet) || (n.podatki?.Predmet2) || ''}</span>
-              <span className="text-gray-500 w-16 border-r border-gray-200">{formatirajDatum(n.podatki?.datumNarocila || n.datumNarocila)}</span>
-              <span className="w-8 border-r border-gray-200 flex items-center justify-center">
-                {prioriteta > 0 && <div className={`w-3 h-3 rounded-full ${prioritetaBarva}`}></div>}
+              <span className={`font-bold pr-1 border-r border-gray-200 ${jeZakljucen ? 'text-red-700' : jeDobavljeno ? 'text-green-700' : 'text-blue-700'}`}>{n.stevilkaNaloga}</span>
+              <span className="min-w-0 text-gray-700 truncate border-r border-gray-200 pr-1">
+                {(
+                  (n.podatki?.kupec?.Naziv) ||
+                  (n.podatki?.kupec?.naziv) ||
+                  (n.podatki?.KupecNaziv) ||
+                  (n.podatki?.kupecNaziv) ||
+                  (n.kupecNaziv) ||
+                  (n.kupec?.Naziv) ||
+                  (n.Naziv) ||
+                  ''
+                ).toString().trim().replace(/^[,\s-]+|[,\s-]+$/g, '')}
               </span>
-              <span className="w-12">
-                <button className="ml-1 text-xs text-blue-600 hover:underline" onClick={e => { e.stopPropagation(); onKopiraj(n); }}>Kopiraj</button>
+              <span className={`min-w-0 text-gray-600 truncate border-r border-gray-200 pr-1 ${predmet1HalfClass}`}>{(n.podatki?.tisk?.tisk1?.predmet) || (n.podatki?.Predmet1) || ''}</span>
+              <span className={`min-w-0 text-gray-600 truncate border-r border-gray-200 pr-1 ${predmet2HalfClass}`}>{(n.podatki?.tisk?.tisk2?.predmet) || (n.podatki?.Predmet2) || ''}</span>
+              <span className="text-gray-500 border-r border-gray-200 pr-1">{formatirajDatum(n.podatki?.datumNarocila || n.datumNarocila)}</span>
+              <span className="border-r border-gray-200 flex items-center justify-center">
+                {prioriteta > 0 && (
+                  <button
+                    type="button"
+                    className="p-0.5"
+                    title="Pokaži nalog v seznamu prioritetnih nalogov"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPrioritetaClick && onPrioritetaClick(Number(n.stevilkaNaloga));
+                    }}
+                  >
+                    <div className={`w-3 h-3 rounded-full ${prioritetaBarva}`}></div>
+                  </button>
+                )}
+              </span>
+              <span className="flex justify-end pr-1">
+                <button
+                  className="text-xs text-blue-600 hover:underline whitespace-nowrap"
+                  title="Kopiraj nalog"
+                  onClick={e => { e.stopPropagation(); onKopiraj(n); }}
+                >
+                  Kopiraj
+                </button>
               </span>
             </div>
           );
@@ -566,13 +678,19 @@ export default SeznamNaloga;
 const VirtualizedList: React.FC<{
   items: any[];
   rowHeight: number;
+  scrollToIndex?: number | null;
+  scrollToTs?: number;
+  initialScrollTop?: number;
+  onScrollTopChange?: (scrollTop: number) => void;
   children: (item: any, index: number) => React.ReactNode;
-}> = ({ items, rowHeight, children }) => {
+}> = ({ items, rowHeight, scrollToIndex, scrollToTs, initialScrollTop, onScrollTopChange, children }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = React.useState(0);
   const [height, setHeight] = React.useState(0);
   const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    setScrollTop((e.target as HTMLDivElement).scrollTop);
+    const top = (e.target as HTMLDivElement).scrollTop;
+    setScrollTop(top);
+    onScrollTopChange && onScrollTopChange(top);
   };
   React.useEffect(() => {
     const el = containerRef.current;
@@ -583,6 +701,36 @@ const VirtualizedList: React.FC<{
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // Ob prvem mountu obnovi scroll pozicijo (za preklapljanje med zavihki)
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const top = Number(initialScrollTop || 0);
+    if (!Number.isFinite(top) || top <= 0) return;
+    requestAnimationFrame(() => {
+      try {
+        el.scrollTop = top;
+        setScrollTop(top);
+      } catch {}
+    });
+    // samo ob mountu / spremembi initial (ob ponovnem mountu zavihka)
+  }, [initialScrollTop]);
+
+  // Programatičen scroll do izbrane vrstice (za "lociraj nalog" iz drugega zavihka).
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (scrollToIndex == null || !Number.isFinite(scrollToIndex)) return;
+    const idx = Math.max(0, Math.min(items.length - 1, Number(scrollToIndex)));
+    const targetTop = Math.max(0, idx * rowHeight - 6 * rowHeight); // malo "pred" vrstico, da je lepo vidna
+    requestAnimationFrame(() => {
+      try {
+        el.scrollTop = targetTop;
+        setScrollTop(targetTop);
+      } catch {}
+    });
+  }, [scrollToIndex, scrollToTs, items.length, rowHeight]);
   const total = items.length;
   const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - 5);
   const visibleCount = height > 0 ? Math.ceil(height / rowHeight) + 10 : 50;
@@ -590,12 +738,12 @@ const VirtualizedList: React.FC<{
   const offsetY = startIndex * rowHeight;
   const slice = items.slice(startIndex, endIndex);
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto" onScroll={onScroll}>
+    <div ref={containerRef} className="flex-1 overflow-y-auto overflow-x-hidden" onScroll={onScroll}>
       {total === 0 && <div className="p-4 text-gray-400 text-center">Ni shranjenih nalogov</div>}
       <div style={{ height: total * rowHeight, position: 'relative' }}>
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${offsetY}px)` }}>
           {slice.map((item, idx) => (
-            <div key={item.stevilkaNaloga} style={{ height: rowHeight }}>
+            <div key={item.stevilkaNaloga} style={{ height: rowHeight, overflow: 'hidden' }}>
               {children(item, startIndex + idx)}
             </div>
           ))}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 
 interface CasSekcije {
   tisk: number;
@@ -16,6 +16,7 @@ interface CasSekcije {
   vezava: number;
   vrtanjeLuknje: number;
   perforacija: number;
+  dodatno: number;
   kooperanti: number;
   skupaj: number;
 }
@@ -24,6 +25,8 @@ interface PrioritetaNaloga {
   stevilkaNaloga: number;
   predvideniCas: number; // v minutah
   casSekcije: CasSekcije;
+  casSekcije1?: CasSekcije; // Pozicija 1 (tisk 1 + dodelava 1), v minutah
+  casSekcije2?: CasSekcije; // Pozicija 2 (tisk 2 + dodelava 2), v minutah
   rokIzdelave: string;
   rokIzdelaveUra: string;
   prioriteta: number; // 1-5 (1=najvišja, 5=najnižja)
@@ -37,11 +40,14 @@ interface PrioritetniNalogiProps {
   onIzberi: (nalog: any) => void;
   onClosedTasksChange?: (closedTasks: ClosedTask[]) => void;
   closedTasks?: ClosedTask[];
+  scrollToStevilkaNaloga?: { id: number; ts: number } | null;
 }
 
 interface ClosedTask {
   stevilkaNaloga: number;
   taskType: string;
+  part?: 0 | 1 | 2;
+  closedAt?: string; // ISO timestamp (za evidenco dejanskega dela po dnevih)
 }
 
 interface Storitev {
@@ -54,14 +60,125 @@ interface Storitev {
   }>;
 }
 
-const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi, onIzberi, onClosedTasksChange, closedTasks = [] }) => {
+const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi, onIzberi, onClosedTasksChange, closedTasks = [], scrollToStevilkaNaloga }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [originalTasks, setOriginalTasks] = useState<Map<number, any>>(new Map());
+  const headerScrollRef = useRef<HTMLDivElement | null>(null);
+  const bodyScrollRef = useRef<HTMLDivElement | null>(null);
+  const syncingScrollRef = useRef<null | 'header' | 'body'>(null);
+  const [flashId, setFlashId] = useState<number | null>(null);
+  const [kolektivniDates, setKolektivniDates] = useState<Set<string>>(() => new Set());
+  const holidaysCacheRef = useRef<Map<number, Record<string, string>>>(new Map());
+  const LS_BOOKINGS = 'koledarBookings-v1';
+
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  const ymdLocal = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+  // Velika noč (Anonymous Gregorian algorithm) – kopija iz Koledar.tsx
+  function easterSunday(year: number): Date {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31); // 3=Mar, 4=Apr
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month - 1, day);
+  }
+
+  function slovenianHolidays(year: number): Record<string, string> {
+    const out: Record<string, string> = {};
+    const fixed: Array<[number, number, string]> = [
+      [1, 1, 'Novo leto'],
+      [1, 2, 'Novo leto (2)'],
+      [2, 8, 'Prešernov dan'],
+      [4, 27, 'Dan upora proti okupatorju'],
+      [5, 1, 'Praznik dela'],
+      [5, 2, 'Praznik dela (2)'],
+      [6, 25, 'Dan državnosti'],
+      [8, 15, 'Marijino vnebovzetje'],
+      [10, 31, 'Dan reformacije'],
+      [11, 1, 'Dan spomina na mrtve'],
+      [12, 25, 'Božič'],
+      [12, 26, 'Dan samostojnosti in enotnosti'],
+    ];
+    for (const [m, d, name] of fixed) out[`${year}-${pad2(m)}-${pad2(d)}`] = name;
+
+    const easter = easterSunday(year);
+    const easterMonday = new Date(easter);
+    easterMonday.setDate(easterMonday.getDate() + 1);
+    out[ymdLocal(easterMonday)] = 'Velikonočni ponedeljek';
+
+    const pentecost = new Date(easter);
+    pentecost.setDate(pentecost.getDate() + 49);
+    out[ymdLocal(pentecost)] = 'Binkošti';
+
+    return out;
+  }
+
+  const getHolidayMap = (year: number): Record<string, string> => {
+    const cached = holidaysCacheRef.current.get(year);
+    if (cached) return cached;
+    const m = slovenianHolidays(year);
+    holidaysCacheRef.current.set(year, m);
+    return m;
+  };
+
+  const isWorkday = (d: Date): boolean => {
+    const dow = d.getDay();
+    if (dow === 0 || dow === 6) return false; // vikend
+    const key = ymdLocal(d);
+    const holidays = getHolidayMap(d.getFullYear());
+    if (holidays[key]) return false; // praznik
+    if (kolektivniDates.has(key)) return false; // kolektivni dopust
+    return true;
+  };
+
+  const loadKolektivniFromLocalStorage = () => {
+    try {
+      const raw = localStorage.getItem(LS_BOOKINGS);
+      if (!raw) return new Set<string>();
+      const obj = JSON.parse(raw);
+      const out = new Set<string>();
+      if (obj && typeof obj === 'object') {
+        for (const k of Object.keys(obj)) {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(k)) continue;
+          const v = (obj as any)[k];
+          if (v && typeof v === 'object' && (v as any).kolektivni) out.add(k);
+        }
+      }
+      return out;
+    } catch {
+      return new Set<string>();
+    }
+  };
+
+  // Sync kolektivnih dni (Koledar shranjuje v localStorage + App dispatcha 'koledar-updated')
+  useEffect(() => {
+    const apply = () => setKolektivniDates(loadKolektivniFromLocalStorage());
+    apply();
+    const onKoledarUpdated = () => apply();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LS_BOOKINGS) apply();
+    };
+    window.addEventListener('koledar-updated', onKoledarUpdated as any);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('koledar-updated', onKoledarUpdated as any);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
   
-  // Funkcija za preverjanje, ali je delovni dan
+  // Funkcija za preverjanje, ali je delovni dan (upošteva vikende + slovenske praznike + kolektivne dneve)
   const jeDelovniDan = (datum: Date): boolean => {
-    const dan = datum.getDay();
-    return dan >= 1 && dan <= 5; // Ponedeljek = 1, Petek = 5
+    return isWorkday(datum);
   };
   
   const formatirajCas = (minute: number): string => {
@@ -73,20 +190,88 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
     return `${min}min`;
   };
 
+  const normalizirajUro = (ura: any): string => {
+    const s = String(ura || '').trim();
+    const m = s.match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return '';
+    const hh = String(Math.min(23, Math.max(0, parseInt(m[1], 10)))).padStart(2, '0');
+    const mm = String(Math.min(59, Math.max(0, parseInt(m[2], 10)))).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  const clampUraNaDelavnik = (hh: number, mm: number): string => {
+    // Delavnik: 07:00–15:00
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return '';
+    if (hh < 7) return '07:00';
+    if (hh > 15) return '15:00';
+    if (hh === 15 && mm > 0) return '15:00';
+    const HH = String(hh).padStart(2, '0');
+    const MM = String(mm).padStart(2, '0');
+    return `${HH}:${MM}`;
+  };
+
+  const extractUraFromDateTime = (v: any): string => {
+    const s = String(v || '').trim();
+    if (!s) return '';
+    // Če je rok shranjen kot "samo datum" (YYYY-MM-DD), nima ure -> naj se uporabi privzeto 15:00 (rešimo z '' in fallback spodaj)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+
+    // Najprej poskusi robustno: parse v Date in vzemi lokalno uro (reši tudi zamik -1h pri ISO z "Z")
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      const hh = d.getHours(); // lokalni čas
+      const mm = d.getMinutes();
+      // Če je ura 00:00 in v inputu sploh ni eksplicitne ure, tretiraj kot manjkajočo uro.
+      const hasExplicitTime = /T\d{1,2}:\d{2}/.test(s) || /\b\d{1,2}:\d{2}\b/.test(s);
+      if (!hasExplicitTime) return '';
+      // Če je eksplicitno 00:00, to je izven delavnika; clamp bo to popravil.
+      return clampUraNaDelavnik(hh, mm);
+    }
+
+    // Fallback: regex (če Date parse ne deluje)
+    const mIso = s.match(/T(\d{1,2}):(\d{2})/);
+    if (mIso) return clampUraNaDelavnik(parseInt(mIso[1], 10), parseInt(mIso[2], 10));
+    const mSpace = s.match(/\b(\d{1,2}):(\d{2})\b/);
+    if (mSpace) return clampUraNaDelavnik(parseInt(mSpace[1], 10), parseInt(mSpace[2], 10));
+    return '';
+  };
+
+  // Ura roka: če ni nastavljena, izračun "Do roka" privzeto uporablja 15:00
+  const pridobiRokUro = (nalog: PrioritetaNaloga): string => {
+    const fromTopRaw = normalizirajUro((nalog as any).rokIzdelaveUra);
+    const fromPodatkiRaw = normalizirajUro((nalog as any).podatki?.rokIzdelaveUra ?? (nalog as any).podatki?.RokIzdelaveUra);
+    const fromTop = fromTopRaw ? clampUraNaDelavnik(parseInt(fromTopRaw.slice(0, 2), 10), parseInt(fromTopRaw.slice(3, 5), 10)) : '';
+    const fromPodatki = fromPodatkiRaw ? clampUraNaDelavnik(parseInt(fromPodatkiRaw.slice(0, 2), 10), parseInt(fromPodatkiRaw.slice(3, 5), 10)) : '';
+    // Če ura ni posebej shranjena (stari nalogi), privzeto 15:00 (konec delavnika)
+    return fromTop || fromPodatki || '15:00';
+  };
+
   // Funkcija za izračun delovnih ur med dvema datumoma
   const izracunajDelovneUre = (zacetek: Date, konec: Date): number => {
     let delovneUre = 0;
     let trenutniDan = new Date(zacetek);
+    const nextWorkdayAt7 = (from: Date): Date => {
+      const d = new Date(from);
+      d.setDate(d.getDate() + 1);
+      d.setHours(7, 0, 0, 0);
+      while (!isWorkday(d)) {
+        d.setDate(d.getDate() + 1);
+        d.setHours(7, 0, 0, 0);
+      }
+      return d;
+    };
+    const ensureWorkdayAtOrAfter = (from: Date): Date => {
+      const d = new Date(from);
+      while (!isWorkday(d)) {
+        d.setDate(d.getDate() + 1);
+        d.setHours(7, 0, 0, 0);
+      }
+      return d;
+    };
     
     // Če je trenutni čas po 15:00, začni z naslednjim delovnim dnem ob 7:00
     if (zacetek.getHours() >= 15) {
-      trenutniDan = new Date(zacetek);
-      trenutniDan.setDate(trenutniDan.getDate() + 1);
-      // Poišči naslednji delovni dan
-      while (trenutniDan.getDay() === 0 || trenutniDan.getDay() === 6) {
-        trenutniDan.setDate(trenutniDan.getDate() + 1);
-      }
-      trenutniDan.setHours(7, 0, 0, 0); // Začni ob 7:00
+      trenutniDan = nextWorkdayAt7(zacetek);
     }
     // Če je trenutni čas pred 7:00, začni ob 7:00 istega dne
     else if (zacetek.getHours() < 7) {
@@ -103,17 +288,21 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
       return 0;
     }
     
+    // Če začnemo na ne-delovni dan, preskoči na naslednji delovni dan ob 7:00
+    trenutniDan = ensureWorkdayAtOrAfter(trenutniDan);
+
     // Če sta začetek in konec isti dan
     if (trenutniDan.getDate() === konec.getDate() && 
         trenutniDan.getMonth() === konec.getMonth() && 
         trenutniDan.getFullYear() === konec.getFullYear()) {
+      if (!isWorkday(trenutniDan)) return 0;
       const zacetekUra = Math.max(7, trenutniDan.getHours() + trenutniDan.getMinutes() / 60);
       const konecUra = Math.min(15, konec.getHours() + konec.getMinutes() / 60);
       return Math.max(0, konecUra - zacetekUra);
     }
     
     // Izračunaj čas za prvi dan (trenutni dan)
-    if (trenutniDan.getDay() >= 1 && trenutniDan.getDay() <= 5) { // Delovni dan
+    if (isWorkday(trenutniDan)) { // Delovni dan
       const zacetekUra = Math.max(7, trenutniDan.getHours() + trenutniDan.getMinutes() / 60);
       delovneUre += Math.max(0, 15 - zacetekUra);
     }
@@ -130,7 +319,7 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
       if (naslednjiDan.getDate() === konec.getDate() && 
           naslednjiDan.getMonth() === konec.getMonth() && 
           naslednjiDan.getFullYear() === konec.getFullYear()) {
-        if (naslednjiDan.getDay() >= 1 && naslednjiDan.getDay() <= 5) { // Delovni dan
+        if (isWorkday(naslednjiDan)) { // Delovni dan
           const konecUra = Math.min(15, konec.getHours() + konec.getMinutes() / 60);
           delovneUre += Math.max(0, konecUra - 7);
         }
@@ -138,7 +327,7 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
       }
       
       // Če ni dan roka, dodaj polni delovni dan
-      if (naslednjiDan.getDay() >= 1 && naslednjiDan.getDay() <= 5) { // Delovni dan
+      if (isWorkday(naslednjiDan)) { // Delovni dan
         delovneUre += 8; // 8 delovnih ur na dan
       }
       
@@ -156,12 +345,9 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
     let konecRoka = new Date(datumRoka);
     
     // Nastavi konec roka z uro
-    if (nalog.rokIzdelaveUra) {
-      const [ure, minute] = nalog.rokIzdelaveUra.split(':').map(Number);
-      konecRoka.setHours(ure, minute, 0, 0);
-    } else {
-      konecRoka.setHours(15, 0, 0, 0);
-    }
+    const uraStr = pridobiRokUro(nalog);
+    const [ure, minute] = uraStr.split(':').map(Number);
+    konecRoka.setHours(ure, minute, 0, 0);
     
     // Določi začetek dela - uporabi trenutni čas
     let zacetekDela = new Date(currentTime);
@@ -171,15 +357,15 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
       zacetekDela = new Date(currentTime);
       zacetekDela.setDate(zacetekDela.getDate() + 1);
       // Poišči naslednji delovni dan
-      while (zacetekDela.getDay() === 0 || zacetekDela.getDay() === 6) {
+      while (!isWorkday(zacetekDela)) {
         zacetekDela.setDate(zacetekDela.getDate() + 1);
       }
       zacetekDela.setHours(7, 0, 0, 0);
-    } else if (!jeDelovniDan(currentTime)) {
+    } else if (!isWorkday(currentTime)) {
       // Če ni delovni dan, se rok začne naslednji delovni dan ob 7:00
       zacetekDela = new Date(currentTime);
       zacetekDela.setDate(zacetekDela.getDate() + 1);
-      while (zacetekDela.getDay() === 0 || zacetekDela.getDay() === 6) {
+      while (!isWorkday(zacetekDela)) {
         zacetekDela.setDate(zacetekDela.getDate() + 1);
       }
       zacetekDela.setHours(7, 0, 0, 0);
@@ -214,6 +400,21 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
     return () => clearInterval(timer);
   }, []);
 
+  // "Lociraj" nalog: po preklopu zavihka se samodejno scrollaj do izbranega naloga.
+  useEffect(() => {
+    const id = Number(scrollToStevilkaNaloga?.id || 0);
+    if (!id) return;
+    setFlashId(id);
+    const t = window.setTimeout(() => setFlashId(null), 1600);
+    window.setTimeout(() => {
+      const el = document.getElementById(`prioritetni-nalog-${id}`);
+      if (el) {
+        try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {}
+      }
+    }, 50);
+    return () => window.clearTimeout(t);
+  }, [scrollToStevilkaNaloga?.id, scrollToStevilkaNaloga?.ts]);
+
 
 
   // Shrani originalne naloge ob prvem naloženju
@@ -228,79 +429,74 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
   }, [prioritetniNalogi, originalTasks.size]);
 
   // Funkcija za zapiranje dodelave
-  const handleCloseTask = (stevilkaNaloga: number, taskType: string) => {
+  const handleCloseTask = (stevilkaNaloga: number, taskType: string, part: 1 | 2) => {
     console.log('Zapiranje dodelave:', stevilkaNaloga, taskType);
     if (onClosedTasksChange) {
-      onClosedTasksChange([...closedTasks, { stevilkaNaloga, taskType }]);
+      // prepreči duplikate
+      if (closedTasks.some(t => t.stevilkaNaloga === stevilkaNaloga && t.taskType === taskType && t.part === part)) return;
+      onClosedTasksChange([...closedTasks, { stevilkaNaloga, taskType, part, closedAt: new Date().toISOString() }]);
     }
+    // Sync na backend (SSE broadcast) – da se zapiranje pokaže na vseh računalnikih
+    try {
+      fetch('/api/closed-tasks/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nalog: stevilkaNaloga, step: taskType, part }),
+      }).catch(() => {});
+    } catch {}
   };
 
-  // Funkcija za ponastavitev naloga
-  const handleResetNalog = (stevilkaNaloga: number) => {
+  // Funkcija za ponastavitev naloga (ločeno po poziciji)
+  const handleResetNalog = (stevilkaNaloga: number, part: 1 | 2) => {
     console.log('Ponastavitev naloga:', stevilkaNaloga);
     if (onClosedTasksChange) {
-      onClosedTasksChange(closedTasks.filter(task => task.stevilkaNaloga !== stevilkaNaloga));
+      onClosedTasksChange(closedTasks.filter(task => task.stevilkaNaloga !== stevilkaNaloga || task.part !== part));
     }
+    // Sync reset na backend (SSE broadcast)
+    try {
+      fetch('/api/closed-tasks/reset-part', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nalog: stevilkaNaloga, part }),
+      }).catch(() => {});
+    } catch {}
   };
 
   // Funkcija za preverjanje ali je dodelava zaprta
-  const isTaskClosed = (stevilkaNaloga: number, taskType: string): boolean => {
-    return closedTasks.some(task => task.stevilkaNaloga === stevilkaNaloga && task.taskType === taskType);
+  const isTaskClosed = (stevilkaNaloga: number, taskType: string, part: 1 | 2): boolean => {
+    return closedTasks.some(task => task.stevilkaNaloga === stevilkaNaloga && task.taskType === taskType && task.part === part);
   };
 
-  // Funkcija za izračun skupnega časa brez zaprtih dodelav
+  // Funkcija za izračun skupnega časa brez zaprtih dodelav (skupaj čez pozicijo 1+2)
   const izracunajSkupniCasBrezZaprtih = (nalog: PrioritetaNaloga): number => {
     let skupniCas = 0;
-    const casSekcije = nalog.casSekcije;
+    const cas1 = nalog.casSekcije1 || nalog.casSekcije;
+    const cas2 = nalog.casSekcije2 || ({} as any);
+    const hasP1 = !!(nalog.podatki?.tisk?.tisk1?.predmet);
+    const hasP2 = !!(nalog.podatki?.tisk?.tisk2?.predmet);
     
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Tisk') && casSekcije.tisk > 0) {
-      skupniCas += casSekcije.tisk;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'UV Tisk') && casSekcije.uvTisk > 0) {
-      skupniCas += casSekcije.uvTisk;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Plastifikacija') && casSekcije.plastifikacija > 0) {
-      skupniCas += casSekcije.plastifikacija;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'UV Lak') && casSekcije.uvLak > 0) {
-      skupniCas += casSekcije.uvLak;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Izsek/Zasek') && casSekcije.izsek > 0) {
-      skupniCas += casSekcije.izsek;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Razrez') && casSekcije.razrez > 0) {
-      skupniCas += casSekcije.razrez;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Topli tisk') && casSekcije.topliTisk > 0) {
-      skupniCas += casSekcije.topliTisk;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Biganje') && casSekcije.biganje > 0) {
-      skupniCas += casSekcije.biganje;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Biganje + ročno zgibanje') && casSekcije.biganjeRocnoZgibanje > 0) {
-      skupniCas += casSekcije.biganjeRocnoZgibanje;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Zgibanje') && casSekcije.zgibanje > 0) {
-      skupniCas += casSekcije.zgibanje;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Lepljenje') && casSekcije.lepljenje > 0) {
-      skupniCas += casSekcije.lepljenje;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Lepljenje blokov') && casSekcije.lepljenjeBlokov > 0) {
-      skupniCas += casSekcije.lepljenjeBlokov;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Vezava') && casSekcije.vezava > 0) {
-      skupniCas += casSekcije.vezava;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Vrtanje luknje') && casSekcije.vrtanjeLuknje > 0) {
-      skupniCas += casSekcije.vrtanjeLuknje;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Perforacija') && casSekcije.perforacija > 0) {
-      skupniCas += casSekcije.perforacija;
-    }
-    if (!isTaskClosed(nalog.stevilkaNaloga, 'Kooperanti') && casSekcije.kooperanti > 0) {
-      skupniCas += casSekcije.kooperanti;
-    }
+    const addPart = (part: 1 | 2, cas: CasSekcije, enabled: boolean) => {
+      if (!enabled) return;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Tisk', part) && cas.tisk > 0) skupniCas += cas.tisk;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'UV Tisk', part) && cas.uvTisk > 0) skupniCas += cas.uvTisk;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Plastifikacija', part) && cas.plastifikacija > 0) skupniCas += cas.plastifikacija;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'UV Lak', part) && cas.uvLak > 0) skupniCas += cas.uvLak;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Izsek/Zasek', part) && cas.izsek > 0) skupniCas += cas.izsek;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Razrez', part) && cas.razrez > 0) skupniCas += cas.razrez;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Topli tisk', part) && cas.topliTisk > 0) skupniCas += cas.topliTisk;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Biganje', part) && cas.biganje > 0) skupniCas += cas.biganje;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Biganje + ročno zgibanje', part) && cas.biganjeRocnoZgibanje > 0) skupniCas += cas.biganjeRocnoZgibanje;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Zgibanje', part) && cas.zgibanje > 0) skupniCas += cas.zgibanje;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Lepljenje', part) && cas.lepljenje > 0) skupniCas += cas.lepljenje;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Lepljenje blokov', part) && cas.lepljenjeBlokov > 0) skupniCas += cas.lepljenjeBlokov;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Vezava', part) && cas.vezava > 0) skupniCas += cas.vezava;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Vrtanje luknje', part) && cas.vrtanjeLuknje > 0) skupniCas += cas.vrtanjeLuknje;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Perforacija', part) && cas.perforacija > 0) skupniCas += cas.perforacija;
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Dodatno', part) && (cas.dodatno || 0) > 0) skupniCas += (cas.dodatno || 0);
+      if (!isTaskClosed(nalog.stevilkaNaloga, 'Kooperanti', part) && cas.kooperanti > 0) skupniCas += cas.kooperanti;
+    };
+    addPart(1, cas1, hasP1);
+    addPart(2, cas2, hasP2);
     
     return skupniCas;
   };
@@ -324,189 +520,124 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
   // Izračun obremenitve storitev
   const obremenitevStoritev = useMemo((): Storitev[] => {
     const storitve: { [key: string]: Storitev } = {};
-    
+
+    const addStoritev = (naziv: string, nalog: PrioritetaNaloga, cas: number) => {
+      if (cas <= 0) return;
+      if (!storitve[naziv]) storitve[naziv] = { naziv, skupniCas: 0, nalogi: [] };
+      storitve[naziv].skupniCas += cas;
+      const existing = storitve[naziv].nalogi.find(n => n.stevilkaNaloga === nalog.stevilkaNaloga);
+      if (existing) {
+        existing.cas += cas;
+      } else {
+        storitve[naziv].nalogi.push({
+          stevilkaNaloga: nalog.stevilkaNaloga,
+          cas,
+          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
+        });
+      }
+    };
+
+    const sections = [
+      { naziv: 'Tisk', taskType: 'Tisk', key: 'tisk' },
+      { naziv: 'UV Tisk', taskType: 'UV Tisk', key: 'uvTisk' },
+      { naziv: 'Plastifikacija', taskType: 'Plastifikacija', key: 'plastifikacija' },
+      { naziv: 'UV Lak', taskType: 'UV Lak', key: 'uvLak' },
+      { naziv: 'Izsek/Zasek', taskType: 'Izsek/Zasek', key: 'izsek' },
+      { naziv: 'Razrez', taskType: 'Razrez', key: 'razrez' },
+      { naziv: 'Topli tisk', taskType: 'Topli tisk', key: 'topliTisk' },
+      { naziv: 'Biganje', taskType: 'Biganje', key: 'biganje' },
+      { naziv: 'Biganje + ročno zgibanje', taskType: 'Biganje + ročno zgibanje', key: 'biganjeRocnoZgibanje' },
+      { naziv: 'Zgibanje', taskType: 'Zgibanje', key: 'zgibanje' },
+      { naziv: 'Lepljenje', taskType: 'Lepljenje', key: 'lepljenje' },
+      { naziv: 'Lepljenje blokov', taskType: 'Lepljenje blokov', key: 'lepljenjeBlokov' },
+      { naziv: 'Vezava', taskType: 'Vezava', key: 'vezava' },
+      { naziv: 'Vrtanje luknje', taskType: 'Vrtanje luknje', key: 'vrtanjeLuknje' },
+      { naziv: 'Perforacija', taskType: 'Perforacija', key: 'perforacija' },
+      { naziv: 'Dodatno', taskType: 'Dodatno', key: 'dodatno' },
+      { naziv: 'Kooperanti', taskType: 'Kooperanti', key: 'kooperanti' },
+    ] as const;
+
+    const addPart = (nalog: PrioritetaNaloga, cas: CasSekcije, part: 1 | 2, enabled: boolean) => {
+      if (!enabled || !cas) return;
+      for (const s of sections) {
+        const v = Number((cas as any)[s.key] || 0);
+        if (v > 0 && !isTaskClosed(nalog.stevilkaNaloga, s.taskType, part)) {
+          addStoritev(s.naziv, nalog, v);
+        }
+      }
+    };
+
     prioritetniNalogi.forEach(nalog => {
-      const sekcije = nalog.casSekcije;
-      
-      // Tisk
-      if (sekcije.tisk > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Tisk')) {
-        if (!storitve['Tisk']) storitve['Tisk'] = { naziv: 'Tisk', skupniCas: 0, nalogi: [] };
-        storitve['Tisk'].skupniCas += sekcije.tisk;
-        storitve['Tisk'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.tisk,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // UV Tisk
-      if (sekcije.uvTisk > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'UV Tisk')) {
-        if (!storitve['UV Tisk']) storitve['UV Tisk'] = { naziv: 'UV Tisk', skupniCas: 0, nalogi: [] };
-        storitve['UV Tisk'].skupniCas += sekcije.uvTisk;
-        storitve['UV Tisk'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.uvTisk,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Plastifikacija
-      if (sekcije.plastifikacija > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Plastifikacija')) {
-        if (!storitve['Plastifikacija']) storitve['Plastifikacija'] = { naziv: 'Plastifikacija', skupniCas: 0, nalogi: [] };
-        storitve['Plastifikacija'].skupniCas += sekcije.plastifikacija;
-        storitve['Plastifikacija'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.plastifikacija,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // UV Lak
-      if (sekcije.uvLak > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'UV Lak')) {
-        if (!storitve['UV Lak']) storitve['UV Lak'] = { naziv: 'UV Lak', skupniCas: 0, nalogi: [] };
-        storitve['UV Lak'].skupniCas += sekcije.uvLak;
-        storitve['UV Lak'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.uvLak,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Izsek/Zasek
-      if (sekcije.izsek > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Izsek/Zasek')) {
-        if (!storitve['Izsek/Zasek']) storitve['Izsek/Zasek'] = { naziv: 'Izsek/Zasek', skupniCas: 0, nalogi: [] };
-        storitve['Izsek/Zasek'].skupniCas += sekcije.izsek;
-        storitve['Izsek/Zasek'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.izsek,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Razrez
-      if (sekcije.razrez > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Razrez')) {
-        if (!storitve['Razrez']) storitve['Razrez'] = { naziv: 'Razrez', skupniCas: 0, nalogi: [] };
-        storitve['Razrez'].skupniCas += sekcije.razrez;
-        storitve['Razrez'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.razrez,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Topli tisk, reliefni tisk, globoki tisk
-      if (sekcije.topliTisk > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Topli tisk')) {
-        if (!storitve['Topli tisk']) storitve['Topli tisk'] = { naziv: 'Topli tisk', skupniCas: 0, nalogi: [] };
-        storitve['Topli tisk'].skupniCas += sekcije.topliTisk;
-        storitve['Topli tisk'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.topliTisk,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Biganje
-      if (sekcije.biganje > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Biganje')) {
-        if (!storitve['Biganje']) storitve['Biganje'] = { naziv: 'Biganje', skupniCas: 0, nalogi: [] };
-        storitve['Biganje'].skupniCas += sekcije.biganje;
-        storitve['Biganje'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.biganje,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Biganje + ročno zgibanje
-      if (sekcije.biganjeRocnoZgibanje > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Biganje + ročno zgibanje')) {
-        if (!storitve['Biganje + ročno zgibanje']) storitve['Biganje + ročno zgibanje'] = { naziv: 'Biganje + ročno zgibanje', skupniCas: 0, nalogi: [] };
-        storitve['Biganje + ročno zgibanje'].skupniCas += sekcije.biganjeRocnoZgibanje;
-        storitve['Biganje + ročno zgibanje'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.biganjeRocnoZgibanje,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Zgibanje
-      if (sekcije.zgibanje > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Zgibanje')) {
-        if (!storitve['Zgibanje']) storitve['Zgibanje'] = { naziv: 'Zgibanje', skupniCas: 0, nalogi: [] };
-        storitve['Zgibanje'].skupniCas += sekcije.zgibanje;
-        storitve['Zgibanje'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.zgibanje,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Lepljenje (lepljenje lepilnega traku)
-      if (sekcije.lepljenje > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Lepljenje')) {
-        if (!storitve['Lepljenje']) storitve['Lepljenje'] = { naziv: 'Lepljenje', skupniCas: 0, nalogi: [] };
-        storitve['Lepljenje'].skupniCas += sekcije.lepljenje;
-        storitve['Lepljenje'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.lepljenje,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Lepljenje blokov
-      if (sekcije.lepljenjeBlokov > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Lepljenje blokov')) {
-        if (!storitve['Lepljenje blokov']) storitve['Lepljenje blokov'] = { naziv: 'Lepljenje blokov', skupniCas: 0, nalogi: [] };
-        storitve['Lepljenje blokov'].skupniCas += sekcije.lepljenjeBlokov;
-        storitve['Lepljenje blokov'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.lepljenjeBlokov,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Vezava
-      if (sekcije.vezava > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Vezava')) {
-        if (!storitve['Vezava']) storitve['Vezava'] = { naziv: 'Vezava', skupniCas: 0, nalogi: [] };
-        storitve['Vezava'].skupniCas += sekcije.vezava;
-        storitve['Vezava'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.vezava,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Vrtanje luknje
-      if (sekcije.vrtanjeLuknje > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Vrtanje luknje')) {
-        if (!storitve['Vrtanje luknje']) storitve['Vrtanje luknje'] = { naziv: 'Vrtanje luknje', skupniCas: 0, nalogi: [] };
-        storitve['Vrtanje luknje'].skupniCas += sekcije.vrtanjeLuknje;
-        storitve['Vrtanje luknje'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.vrtanjeLuknje,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Perforacija
-      if (sekcije.perforacija > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Perforacija')) {
-        if (!storitve['Perforacija']) storitve['Perforacija'] = { naziv: 'Perforacija', skupniCas: 0, nalogi: [] };
-        storitve['Perforacija'].skupniCas += sekcije.perforacija;
-        storitve['Perforacija'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.perforacija,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
-      
-      // Kooperanti
-      if (sekcije.kooperanti > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Kooperanti')) {
-        if (!storitve['Kooperanti']) storitve['Kooperanti'] = { naziv: 'Kooperanti', skupniCas: 0, nalogi: [] };
-        storitve['Kooperanti'].skupniCas += sekcije.kooperanti;
-        storitve['Kooperanti'].nalogi.push({
-          stevilkaNaloga: nalog.stevilkaNaloga,
-          cas: sekcije.kooperanti,
-          naziv: nalog.podatki?.naziv || `Nalog ${nalog.stevilkaNaloga}`
-        });
-      }
+      const cas1 = nalog.casSekcije1 || nalog.casSekcije;
+      const cas2 = nalog.casSekcije2 || ({} as any);
+      const hasP1 = !!(nalog.podatki?.tisk?.tisk1?.predmet);
+      const hasP2 = !!(nalog.podatki?.tisk?.tisk2?.predmet);
+      addPart(nalog, cas1, 1, hasP1);
+      addPart(nalog, cas2, 2, hasP2);
     });
-    
+
     return Object.values(storitve).sort((a, b) => b.skupniCas - a.skupniCas);
   }, [prioritetniNalogi, closedTasks]);
+
+  // Mapiranje naših nazivov na točna imena API-ja Cenikov (DELOVNI_NALOG_INTEGRACIJA.md)
+  const NAZIV_TO_CENIKI_KEY: Record<string, string> = {
+    'Tisk': 'Tisk',
+    'Plastifikacija': 'plastifikacija',
+    'UV Lak': 'UV lak',
+    'Topli tisk': 'Topli tisk',
+    'UV Tisk': 'UV tisk',
+    'Perforacija': 'Perforacija',
+    'Izsek/Zasek': 'Izsek/zasek',
+    'Razrez': 'Razrez',
+    'Lepljenje': 'Lepljenje',
+    'Lepljenje blokov': 'Lepljenje blokov',
+    'Biganje + ročno zgibanje': 'Biganje + ročno zgibanje',
+    'Biganje': 'Biganje',
+    'Zgibanje': 'Zgibanje',
+    'Vrtanje luknje': 'Vrtanje luknje',
+    'Vezava': 'Vezava',
+    'Dodatno': 'Dodatno',
+  };
+
+  // Objekt casi za Cenike (vrednosti v urah). Kooperanti ni v seznamu API-ja.
+  const casiZaCenike = useMemo((): Record<string, number> => {
+    const casi: Record<string, number> = {};
+    const API_KEYS = ['Tisk', 'plastifikacija', 'UV lak', 'Topli tisk', 'UV tisk', 'Perforacija', 'Izsek/zasek', 'Razrez', 'Lepljenje', 'Lepljenje blokov', 'Biganje + ročno zgibanje', 'Biganje', 'Zgibanje', 'Vrtanje luknje', 'Vezava', 'Dodatno'];
+    API_KEYS.forEach(k => { casi[k] = 0; });
+    obremenitevStoritev.forEach(st => {
+      const apiKey = NAZIV_TO_CENIKI_KEY[st.naziv];
+      if (apiKey && casi[apiKey] !== undefined) {
+        casi[apiKey] += st.skupniCas / 60; // minute -> ure
+      }
+    });
+    return casi;
+  }, [obremenitevStoritev]);
+
+  // Periodični izvoz časov v Cenike (vsakih 15 s + ob spremembi z debounce)
+  const casiZaCenikeRef = useRef<Record<string, number>>({});
+  const lastExportRef = useRef<number>(0);
+  useEffect(() => {
+    const INTERVAL_MS = 15000; // 15 sekund
+    const MIN_INTERVAL_MS = 5000;  // najmanj 5 s med pošiljanjem
+    const exportNow = () => {
+      const now = Date.now();
+      if (now - lastExportRef.current < MIN_INTERVAL_MS) return;
+      lastExportRef.current = now;
+      const casi = casiZaCenike;
+      // Pošlji samo če je vsebina drugačna
+      const str = JSON.stringify(casi);
+      if (str === JSON.stringify(casiZaCenikeRef.current)) return;
+      casiZaCenikeRef.current = casi;
+      fetch('/api/dodelave-times/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ casi }),
+      }).catch(() => {}); // tiho napako ignoriramo
+    };
+    exportNow(); // takoj ob spremembi
+    const t = setInterval(exportNow, INTERVAL_MS);
+    return () => clearInterval(t);
+  }, [casiZaCenike]);
 
   const formatirajDatum = (datum: string): string => {
     if (!datum) return '';
@@ -515,20 +646,6 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
     const month = date.getMonth() + 1;
     const year = date.getFullYear();
     return `${day}.${month}.${year}`;
-  };
-
-  const formatirajDatumInUro = (datum: string, ura: string): string => {
-    if (!datum) return '';
-    const date = new Date(datum);
-    const day = date.getDate();
-    const month = date.getMonth() + 1;
-    const year = date.getFullYear();
-    const datumStr = `${day}.${month}.${year}`;
-    
-    if (ura) {
-      return `${datumStr} ob ${ura}`;
-    }
-    return datumStr;
   };
 
   const getPrioritetaBarva = (prioriteta: number): string => {
@@ -549,17 +666,6 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
       case 3: return 'POMEMBNO';
       case 4: return 'OBIČAJNO';
       case 5: return 'NIZKA';
-      default: return 'N/A';
-    }
-  };
-
-  const getPrioritetaOpis = (prioriteta: number): string => {
-    switch (prioriteta) {
-      case 1: return 'Prekoračen rok';
-      case 2: return 'Rok 0-2h';
-      case 3: return 'Rok 2-5h';
-      case 4: return 'Rok 5-16h';
-      case 5: return 'Rok >16h';
       default: return 'N/A';
     }
   };
@@ -600,407 +706,367 @@ const PrioritetniNalogi: React.FC<PrioritetniNalogiProps> = ({ prioritetniNalogi
     return filtrirani;
   }, [prioritetniNalogi, closedTasks, currentTime]);
 
-  // Funkcija za preverjanje ali so vsi oblački zaprti
-  const soVsiOblackiZaprti = (nalog: PrioritetaNaloga): boolean => {
-    const casSekcije = nalog.casSekcije;
-    
-    // Preveri vse sekcije, ki imajo čas > 0
-    const sekcije = [
-      { tip: 'Tisk', cas: casSekcije.tisk },
-      { tip: 'UV Tisk', cas: casSekcije.uvTisk },
-      { tip: 'Plastifikacija', cas: casSekcije.plastifikacija },
-      { tip: 'UV Lak', cas: casSekcije.uvLak },
-      { tip: 'Izsek/Zasek', cas: casSekcije.izsek },
-      { tip: 'Razrez', cas: casSekcije.razrez },
-      { tip: 'Topli tisk', cas: casSekcije.topliTisk },
-      { tip: 'Biganje', cas: casSekcije.biganje },
-      { tip: 'Biganje + ročno zgibanje', cas: casSekcije.biganjeRocnoZgibanje },
-      { tip: 'Zgibanje', cas: casSekcije.zgibanje },
-      { tip: 'Lepljenje', cas: casSekcije.lepljenje },
-      { tip: 'Lepljenje blokov', cas: casSekcije.lepljenjeBlokov },
-      { tip: 'Vezava', cas: casSekcije.vezava },
-      { tip: 'Vrtanje luknje', cas: casSekcije.vrtanjeLuknje },
-      { tip: 'Perforacija', cas: casSekcije.perforacija },
-      { tip: 'Kooperanti', cas: casSekcije.kooperanti }
-    ];
-    
-    // Preveri, ali so vsi oblački z časom > 0 zaprti
-    return sekcije.every(sekcija => {
-      if (sekcija.cas > 0) {
-        return isTaskClosed(nalog.stevilkaNaloga, sekcija.tip);
-      }
-      return true; // Če sekcija nima časa, je "zaprta"
-    });
-  };
-
   // Funkcija za pridobitev barve dodelave
   const getDodelavaBarva = (dodelava: string): string => {
     switch (dodelava) {
-      case 'Tisk': return 'bg-blue-100 text-blue-800';
-      case 'UV Tisk': return 'bg-purple-100 text-purple-800';
-      case 'Plastifikacija': return 'bg-green-100 text-green-800';
-      case 'UV Lak': return 'bg-yellow-100 text-yellow-800';
-      case 'Izsek/Zasek': return 'bg-red-100 text-red-800';
-      case 'Razrez': return 'bg-indigo-100 text-indigo-800';
-      case 'Topli tisk': return 'bg-orange-100 text-orange-800';
-      case 'Biganje': return 'bg-indigo-100 text-indigo-800';
-      case 'Biganje + ročno zgibanje': return 'bg-indigo-100 text-indigo-800';
-      case 'Zgibanje': return 'bg-pink-100 text-pink-800';
-      case 'Lepljenje': return 'bg-teal-100 text-teal-800';
-      case 'Lepljenje blokov': return 'bg-teal-100 text-teal-800';
-      case 'Vezava': return 'bg-cyan-100 text-cyan-800';
-      case 'Vrtanje luknje': return 'bg-gray-100 text-gray-800';
-      case 'Perforacija': return 'bg-lime-100 text-lime-800';
-      case 'Kooperanti': return 'bg-amber-100 text-amber-800';
-      default: return 'bg-gray-100 text-gray-800';
+      // Opomba: barve morajo biti unikatne in enake tudi v "Obremenitev strojev"
+      case 'Tisk': return 'bg-blue-100 text-blue-900';
+      case 'Plastifikacija': return 'bg-emerald-100 text-emerald-900';
+      case 'UV Lak': return 'bg-yellow-100 text-yellow-900';
+      case 'Topli tisk': return 'bg-orange-100 text-orange-900';
+      case 'UV Tisk': return 'bg-violet-100 text-violet-900';
+      case 'Perforacija': return 'bg-lime-100 text-lime-900';
+      case 'Izsek/Zasek': return 'bg-red-100 text-red-900';
+      case 'Razrez': return 'bg-indigo-100 text-indigo-900';
+      case 'Lepljenje': return 'bg-teal-100 text-teal-900';
+      case 'Lepljenje blokov': return 'bg-cyan-100 text-cyan-900';
+      case 'Biganje + ročno zgibanje': return 'bg-pink-100 text-pink-900';
+      case 'Biganje': return 'bg-fuchsia-100 text-fuchsia-900';
+      case 'Zgibanje': return 'bg-rose-100 text-rose-900';
+      case 'Vezava': return 'bg-sky-100 text-sky-900';
+      case 'Vrtanje luknje': return 'bg-slate-100 text-slate-900';
+      case 'Dodatno': return 'bg-neutral-100 text-neutral-900';
+      case 'Kooperanti': return 'bg-amber-100 text-amber-900';
+      default: return 'bg-gray-100 text-gray-900';
     }
   };
 
+  // 1. vrstica (podatki): vrni prejšnjo postavitev (boljša), samo z dodatnim stolpcem "Čas izdelave"
+  const topGridCols =
+    'inline-grid grid-cols-[72px_130px_minmax(0,320px)_minmax(0,260px)_minmax(0,260px)_200px_110px_150px_120px_110px_80px] gap-x-3';
+
+  const dodelaveVrstniRed = [
+    { label: 'Tisk', taskType: 'Tisk' as const, getCas: (c: CasSekcije) => c.tisk },
+    { label: 'Plastifikacija', taskType: 'Plastifikacija' as const, getCas: (c: CasSekcije) => c.plastifikacija },
+    { label: 'UV lak', taskType: 'UV Lak' as const, getCas: (c: CasSekcije) => c.uvLak },
+    { label: 'Topli tisk', taskType: 'Topli tisk' as const, getCas: (c: CasSekcije) => c.topliTisk },
+    { label: 'UV tisk', taskType: 'UV Tisk' as const, getCas: (c: CasSekcije) => c.uvTisk },
+    { label: 'Perforacija', taskType: 'Perforacija' as const, getCas: (c: CasSekcije) => c.perforacija },
+    { label: 'Izsek/zasek', taskType: 'Izsek/Zasek' as const, getCas: (c: CasSekcije) => c.izsek },
+    { label: 'Razrez', taskType: 'Razrez' as const, getCas: (c: CasSekcije) => c.razrez },
+    { label: 'Lepljenje', taskType: 'Lepljenje' as const, getCas: (c: CasSekcije) => c.lepljenje },
+    { label: 'Lepljenje blokov', taskType: 'Lepljenje blokov' as const, getCas: (c: CasSekcije) => c.lepljenjeBlokov },
+    { label: 'Biganje + ročno zgibanje', taskType: 'Biganje + ročno zgibanje' as const, getCas: (c: CasSekcije) => c.biganjeRocnoZgibanje },
+    { label: 'Biganje', taskType: 'Biganje' as const, getCas: (c: CasSekcije) => c.biganje },
+    { label: 'Zgibanje', taskType: 'Zgibanje' as const, getCas: (c: CasSekcije) => c.zgibanje },
+    { label: 'Vrtanje luknje', taskType: 'Vrtanje luknje' as const, getCas: (c: CasSekcije) => c.vrtanjeLuknje },
+    { label: 'Vezava', taskType: 'Vezava' as const, getCas: (c: CasSekcije) => c.vezava },
+    { label: 'Dodatno', taskType: 'Dodatno' as const, getCas: (c: CasSekcije) => c.dodatno || 0 }
+  ];
+
   return (
-    <div className="w-full h-full flex bg-white">
-      {/* Glavni prikaz */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className="bg-gray-100 border-b p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-          <div>
-            <h2 className="text-xl font-bold text-gray-800">Prioritetni Nalogi</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              Seznam aktivnih nalogov razvrščenih po prioriteti in roku izdelave
-            </p>
-            <div className="mt-3 flex gap-2 text-xs">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-purple-800"></div>
-                <span>Kritično (prekoračen)</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-red-600"></div>
-                <span>Urgentno (0-2h)</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-orange-400"></div>
-                <span>Pomembno (2-5h)</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
-                <span>Običajno (5-16h)</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-green-400"></div>
-                <span>Nizka ({'>16h'})</span>
-              </div>
-            </div>
+    <div className="w-full bg-white">
+        {filtriraniNalogi.length === 0 ? (
+          <div className="p-8 text-center text-gray-500">
+            <div className="text-4xl mb-4">📋</div>
+            <p className="text-lg font-medium">Ni aktivnih nalogov</p>
+            <p className="text-sm">Vsi nalogi so zaključeni ali dobavljeni</p>
           </div>
-        </div>
-
-        {/* Seznam nalogov in obremenitev storitev */}
-        <div className="flex-1 flex">
-          {/* Seznam nalogov */}
-          <div className="flex-1 overflow-y-auto">
-            {filtriraniNalogi.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                <div className="text-4xl mb-4">📋</div>
-                <p className="text-lg font-medium">Ni aktivnih nalogov</p>
-                <p className="text-sm">Vsi nalogi so zaključeni ali dobavljeni</p>
-              </div>
-            ) : (
-              <div className="p-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {filtriraniNalogi.map((nalog) => (
-                  <div
-                    key={nalog.stevilkaNaloga}
-                    className="border rounded-lg p-3 hover:shadow-md transition-shadow bg-white"
-                  >
-                    {/* Header vrstice */}
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl font-bold text-blue-600">#{nalog.stevilkaNaloga}</span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${getPrioritetaBarva(izracunajPrioriteto(nalog))}`}>
-                          {getPrioritetaText(izracunajPrioriteto(nalog))}
-                        </span>
-                      </div>
-                      <div className="text-right text-xs">
-                        <div className="text-gray-600">Rok: {formatirajDatumInUro(nalog.rokIzdelave, nalog.rokIzdelaveUra)}</div>
-                        <div className={`font-medium ${izracunajCasDoRoka(nalog) < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                          Do roka: {formatirajCasDoRoka(izracunajCasDoRoka(nalog))}
-                        </div>
-                      </div>
+        ) : (
+          <div className="p-4">
+            {/* Sticky: legenda + glave (lepljeno na vrh znotraj overflow-y kontejnerja v App.tsx) */}
+            <div className="sticky top-0 z-50 bg-white">
+              <div className="bg-gray-100 border border-gray-200 p-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-800">Prioritetni Nalogi</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Seznam aktivnih nalogov razvrščenih po prioriteti in roku izdelave
+                  </p>
+                  <div className="mt-3 flex gap-2 text-xs flex-wrap">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-purple-800"></div>
+                      <span>Kritično (prekoračen)</span>
                     </div>
-
-                    {/* Kupec in predmeti v eni vrstici */}
-                    <div className="mb-3">
-                      <div className="text-sm font-semibold text-gray-800 mb-1">
-                        {nalog.podatki?.kupec?.Naziv || 'Ni podatkov o kupcu'}
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        {nalog.podatki?.tisk?.tisk1?.predmet || 'Ni predmeta'} 
-                        {nalog.podatki?.tisk?.tisk2?.predmet && ` / ${nalog.podatki.tisk.tisk2.predmet}`}
-                      </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-red-600"></div>
+                      <span>Urgentno (0-2h)</span>
                     </div>
-
-                    {/* Časovni podatki v eni vrstici */}
-                    <div className="flex justify-between items-center mb-3 text-sm">
-                      <div>
-                        <span className="text-gray-600">Skupaj: </span>
-                        <span className="font-semibold">{formatirajCas(izracunajSkupniCasBrezZaprtih(nalog))}</span>
-                      </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-orange-400"></div>
+                      <span>Pomembno (2-5h)</span>
                     </div>
-
-                    {/* Razčlenitev po sekcijah - kompaktno */}
-                    <div className="mb-3">
-                      <div className="text-xs font-medium text-gray-700 mb-1">Sekcije:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {nalog.casSekcije.tisk > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Tisk') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Tisk')}`}>
-                            Tisk: {formatirajCas(nalog.casSekcije.tisk)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Tisk')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.uvTisk > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'UV Tisk') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('UV Tisk')}`}>
-                            UV Tisk: {formatirajCas(nalog.casSekcije.uvTisk)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'UV Tisk')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.plastifikacija > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Plastifikacija') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Plastifikacija')}`}>
-                            Plastifikacija: {formatirajCas(nalog.casSekcije.plastifikacija)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Plastifikacija')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.uvLak > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'UV Lak') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('UV Lak')}`}>
-                            UV Lak: {formatirajCas(nalog.casSekcije.uvLak)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'UV Lak')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.izsek > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Izsek/Zasek') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Izsek/Zasek')}`}>
-                            Izsek/Zasek: {formatirajCas(nalog.casSekcije.izsek)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Izsek/Zasek')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.razrez > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Razrez') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Razrez')}`}>
-                            Razrez: {formatirajCas(nalog.casSekcije.razrez)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Razrez')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.topliTisk > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Topli tisk') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Topli tisk')}`}>
-                            Topli tisk: {formatirajCas(nalog.casSekcije.topliTisk)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Topli tisk')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.biganje > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Biganje') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Biganje')}`}>
-                            Biganje: {formatirajCas(nalog.casSekcije.biganje)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Biganje')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.biganjeRocnoZgibanje > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Biganje + ročno zgibanje') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Biganje + ročno zgibanje')}`}>
-                            Biganje + ročno zgibanje: {formatirajCas(nalog.casSekcije.biganjeRocnoZgibanje)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Biganje + ročno zgibanje')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.zgibanje > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Zgibanje') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Zgibanje')}`}>
-                            Zgibanje: {formatirajCas(nalog.casSekcije.zgibanje)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Zgibanje')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.lepljenje > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Lepljenje') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Lepljenje')}`}>
-                            Lepljenje: {formatirajCas(nalog.casSekcije.lepljenje)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Lepljenje')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.lepljenjeBlokov > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Lepljenje blokov') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Lepljenje blokov')}`}>
-                            Lepljenje blokov: {formatirajCas(nalog.casSekcije.lepljenjeBlokov)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Lepljenje blokov')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.vezava > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Vezava') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Vezava')}`}>
-                            Vezava: {formatirajCas(nalog.casSekcije.vezava)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Vezava')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.vrtanjeLuknje > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Vrtanje luknje') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Vrtanje luknje')}`}>
-                            Vrtanje luknje: {formatirajCas(nalog.casSekcije.vrtanjeLuknje)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Vrtanje luknje')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.perforacija > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Perforacija') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Perforacija')}`}>
-                            Perforacija: {formatirajCas(nalog.casSekcije.perforacija)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Perforacija')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                        {nalog.casSekcije.kooperanti > 0 && !isTaskClosed(nalog.stevilkaNaloga, 'Kooperanti') && (
-                          <div className={`relative px-2 py-1 rounded text-xs ${getDodelavaBarva('Kooperanti')}`}>
-                            Kooperanti: {formatirajCas(nalog.casSekcije.kooperanti)}
-                            <button
-                              onClick={() => handleCloseTask(nalog.stevilkaNaloga, 'Kooperanti')}
-                              className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                            >
-                              ×
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-yellow-400"></div>
+                      <span>Običajno (5-16h)</span>
                     </div>
-
-                    {/* Akcije */}
-                    <div className="flex items-center justify-between pt-2 border-t">
-                      <div className="text-xs font-medium">
-                        {soVsiOblackiZaprti(nalog) ? (
-                          <span className="text-green-600">Nalog zaključen</span>
-                        ) : (
-                          <span className="text-green-600">V delu</span>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <button 
-                          className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors text-xs"
-                          onClick={() => handleResetNalog(nalog.stevilkaNaloga)}
-                        >
-                          Razveljavi
-                        </button>
-                        <button 
-                          className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs"
-                          onClick={() => {
-                            // Najdi originalni nalog iz seznama vseh nalogov
-                            const originalniNalog = prioritetniNalogi.find(p => p.stevilkaNaloga === nalog.stevilkaNaloga);
-                            if (originalniNalog) {
-                              // Pretvori v format, ki ga pričakuje handleIzberiNalog
-                              const nalogZaOdprtje = {
-                                stevilkaNaloga: originalniNalog.stevilkaNaloga,
-                                podatki: originalniNalog.podatki,
-                                status: originalniNalog.status,
-                                emailPoslan: originalniNalog.podatki?.emailPoslan || false,
-                                dobavljeno: originalniNalog.status === 'dobavljeno'
-                              };
-                              onIzberi(nalogZaOdprtje);
-                            }
-                          }}
-                        >
-                          Odpri
-                        </button>
-                      </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                      <span>Nizka ({'>16h'})</span>
                     </div>
                   </div>
-                  ))}
                 </div>
               </div>
-            )}
-          </div>
-          
-          {/* Obremenitev storitev */}
-          <div className="w-80 bg-gray-50 border-l flex flex-col">
-            <div className="p-4 border-b bg-white">
-              <h3 className="text-lg font-bold text-gray-800">Obremenitev Storitev</h3>
-              <p className="text-sm text-gray-600">Skupni čas po storitvah</p>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {obremenitevStoritev.map((storitev) => (
-                <div key={storitev.naziv} className={`rounded-lg p-3 border ${getDodelavaBarva(storitev.naziv)}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold">{storitev.naziv}</h4>
-                    <span className="text-sm font-bold">{formatirajCas(storitev.skupniCas)}</span>
+
+              {/* Header (horizontal scroll), scrollLeft se sinhronizira z body */}
+              <div
+                ref={headerScrollRef}
+                onScroll={() => {
+                  if (syncingScrollRef.current === 'body') return;
+                  syncingScrollRef.current = 'header';
+                  const a = headerScrollRef.current;
+                  const b = bodyScrollRef.current;
+                  if (a && b) b.scrollLeft = a.scrollLeft;
+                  requestAnimationFrame(() => { syncingScrollRef.current = null; });
+                }}
+                style={{ overflowX: 'auto', overflowY: 'visible' as any }}
+              >
+                <div className="min-w-[1600px] w-full">
+                  {/* Glavna glava (1. vrstica) */}
+                  <div className="bg-gray-100 border border-gray-200 px-2 py-2 shadow-sm">
+                    <div className={`${topGridCols} items-center text-sm font-semibold`}>
+                      <span>Št.</span>
+                      <span>Prioriteta</span>
+                      <span className="min-w-0">Stranka</span>
+                      <span className="min-w-0">Predmet 1</span>
+                      <span className="min-w-0">Predmet 2</span>
+                      <span>Rok izdelave</span>
+                      <span>Predviden čas izdelave</span>
+                      <span>Do roka</span>
+                      <span>Preostali čas izdelave</span>
+                      <span className="text-center">Razveljavi</span>
+                      <span className="text-center">Odpri</span>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    {storitev.nalogi.map((nalog) => (
-                      <div key={nalog.stevilkaNaloga} className="flex items-center justify-between text-xs">
-                        <span>#{nalog.stevilkaNaloga}</span>
-                        <span className="font-medium">{formatirajCas(nalog.cas)}</span>
+
+                  {/* Glava dodelav (2. vrstica) */}
+                  <div
+                    className="grid gap-1 text-[10px] font-semibold text-gray-600 bg-gray-50 border-x border-b border-gray-200 px-2 py-1 shadow-sm"
+                    style={{ gridTemplateColumns: `repeat(${dodelaveVrstniRed.length}, minmax(0, 1fr))` }}
+                  >
+                    {dodelaveVrstniRed.map((d) => (
+                      <div key={d.taskType} className="truncate" title={d.label}>
+                        {d.label}
                       </div>
                     ))}
                   </div>
                 </div>
-              ))}
+              </div>
+            </div>
+
+            {/* Body (horizontal scroll) */}
+            <div
+              ref={bodyScrollRef}
+              onScroll={() => {
+                if (syncingScrollRef.current === 'header') return;
+                syncingScrollRef.current = 'body';
+                const a = bodyScrollRef.current;
+                const b = headerScrollRef.current;
+                if (a && b) b.scrollLeft = a.scrollLeft;
+                requestAnimationFrame(() => { syncingScrollRef.current = null; });
+              }}
+              style={{ overflowX: 'auto', overflowY: 'visible' as any }}
+            >
+              <div className="min-w-[1600px] w-full">
+                <div className="border-x border-b border-gray-200">
+                  {filtriraniNalogi.map((nalog, idx) => {
+                    const prioriteta = izracunajPrioriteto(nalog);
+                    const kupec = nalog.podatki?.kupec?.Naziv || 'Ni podatkov o kupcu';
+                    const predmet1 = nalog.podatki?.tisk?.tisk1?.predmet || '';
+                    const predmet2 = nalog.podatki?.tisk?.tisk2?.predmet || '';
+                    const casIzdelaveMin = Number.isFinite((nalog as any).predvideniCas)
+                      ? Number((nalog as any).predvideniCas)
+                      : Number((nalog as any).casSekcije?.skupaj || 0);
+                    const doRoka = izracunajCasDoRoka(nalog);
+                    const skupaj = izracunajSkupniCasBrezZaprtih(nalog);
+                    const rowBg = idx % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                    const hasAnyClosedP1 = closedTasks.some(t => t.stevilkaNaloga === nalog.stevilkaNaloga && t.part === 1);
+                    const hasAnyClosedP2 = closedTasks.some(t => t.stevilkaNaloga === nalog.stevilkaNaloga && t.part === 2);
+                    const cas1 = nalog.casSekcije1 || nalog.casSekcije;
+                    const cas2 = nalog.casSekcije2 || ({
+                      tisk: 0, uvTisk: 0, plastifikacija: 0, uvLak: 0, izsek: 0, razrez: 0, topliTisk: 0,
+                      biganje: 0, biganjeRocnoZgibanje: 0, zgibanje: 0, lepljenje: 0, lepljenjeBlokov: 0,
+                      vezava: 0, vrtanjeLuknje: 0, perforacija: 0, dodatno: 0, kooperanti: 0, skupaj: 0
+                    } as any);
+                    const rokUra = pridobiRokUro(nalog);
+                    const rokPrikaz = `${formatirajDatum(nalog.rokIzdelave)}${rokUra ? ` ${rokUra}` : ''}`;
+
+                    const isFlash = flashId === nalog.stevilkaNaloga;
+                    return (
+                      <div
+                        key={nalog.stevilkaNaloga}
+                        id={`prioritetni-nalog-${nalog.stevilkaNaloga}`}
+                        className={`${rowBg} border-t border-gray-200 ${isFlash ? 'ring-2 ring-inset ring-blue-500' : ''}`}
+                      >
+                        {/* Meta vrstica (prikaži samo 1x na nalog) */}
+                        <div className="px-2 pt-2 pb-2">
+                          <div className={`${topGridCols} items-center text-sm md:text-base`}>
+                            <span className="font-extrabold text-blue-700">#{nalog.stevilkaNaloga}</span>
+                            <span>
+                              <span className={`inline-flex px-3 py-1 rounded-full text-xs md:text-sm font-extrabold ${getPrioritetaBarva(prioriteta)}`}>
+                                {getPrioritetaText(prioriteta)}
+                              </span>
+                            </span>
+                            <span className="min-w-0 truncate text-gray-900 font-semibold" title={kupec}>{kupec}</span>
+                            <span className="min-w-0 truncate text-gray-800" title={predmet1}>{predmet1}</span>
+                            <span className="min-w-0 truncate text-gray-800" title={predmet2}>{predmet2}</span>
+                            <span className="text-gray-800">{rokPrikaz}</span>
+                            <span className="text-gray-800 font-semibold">{formatirajCas(casIzdelaveMin)}</span>
+                            <span className="font-extrabold text-red-600">{formatirajCasDoRoka(doRoka)}</span>
+                            <span className="font-extrabold text-gray-900">{formatirajCas(skupaj)}</span>
+                            <span className="flex justify-center">
+                              <div className="flex flex-col gap-1">
+                                <button
+                                  disabled={!hasAnyClosedP1}
+                                  className={`px-3 py-1 rounded transition-colors text-xs md:text-sm ${
+                                    hasAnyClosedP1 ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                  }`}
+                                  onClick={() => handleResetNalog(nalog.stevilkaNaloga, 1)}
+                                  title="Razveljavi samo dodelave za Predmet 1"
+                                >
+                                  Razveljavi 1
+                                </button>
+                                <button
+                                  disabled={!hasAnyClosedP2}
+                                  className={`px-3 py-1 rounded transition-colors text-xs md:text-sm ${
+                                    hasAnyClosedP2 ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                  }`}
+                                  onClick={() => handleResetNalog(nalog.stevilkaNaloga, 2)}
+                                  title="Razveljavi samo dodelave za Predmet 2"
+                                >
+                                  Razveljavi 2
+                                </button>
+                              </div>
+                            </span>
+                            <span className="flex justify-center">
+                              <button
+                                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs md:text-sm"
+                                onClick={() => {
+                                  const originalniNalog = prioritetniNalogi.find(p => p.stevilkaNaloga === nalog.stevilkaNaloga);
+                                  if (originalniNalog) {
+                                    const nalogZaOdprtje = {
+                                      stevilkaNaloga: originalniNalog.stevilkaNaloga,
+                                      podatki: originalniNalog.podatki,
+                                      status: originalniNalog.status,
+                                      emailPoslan: originalniNalog.podatki?.emailPoslan || false,
+                                      dobavljeno: originalniNalog.status === 'dobavljeno'
+                                    };
+                                    onIzberi(nalogZaOdprtje);
+                                  }
+                                }}
+                              >
+                                Odpri
+                              </button>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Oznaka: Predmet 1 */}
+                        <div className="px-2 pb-1 -mt-1">
+                          <div className="text-[11px] font-semibold text-gray-600 truncate" title={predmet1 || ''}>
+                            Predmet 1{predmet1 ? `: ${predmet1}` : ''}
+                          </div>
+                        </div>
+
+                        {/* Dodelave 1 */}
+                        <div className="grid gap-1 px-2 pb-1 w-full" style={{ gridTemplateColumns: `repeat(${dodelaveVrstniRed.length}, minmax(0, 1fr))` }}>
+                          {dodelaveVrstniRed.map((d) => {
+                            const cas = d.getCas(cas1);
+                            const jeZaprt = isTaskClosed(nalog.stevilkaNaloga, d.taskType, 1);
+                            const naslov = `${d.label}: ${formatirajCas(cas)}`;
+                            return (
+                              <div key={`p1-${d.taskType}`} className="min-h-[28px]">
+                                {cas > 0 ? (
+                                  <div
+                                    className={`px-2 py-1 rounded text-[11px] leading-tight border border-black/10 select-none ${getDodelavaBarva(d.taskType)} ${
+                                      jeZaprt ? 'opacity-50 grayscale cursor-default' : 'cursor-pointer hover:opacity-90'
+                                    }`}
+                                    title={jeZaprt ? `${naslov} (zaključeno)` : `${naslov} (klik za zapiranje)`}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => { if (!jeZaprt) handleCloseTask(nalog.stevilkaNaloga, d.taskType, 1); }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        if (!jeZaprt) handleCloseTask(nalog.stevilkaNaloga, d.taskType, 1);
+                                      }
+                                    }}
+                                  >
+                                    <div className="truncate">{d.label}: {formatirajCas(cas)}</div>
+                                  </div>
+                                ) : <div className="h-[28px]" />}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Oznaka: Predmet 2 */}
+                        <div className="px-2 pb-1">
+                          <div className="text-[11px] font-semibold text-gray-600 truncate" title={predmet2 || ''}>
+                            Predmet 2{predmet2 ? `: ${predmet2}` : ''}
+                          </div>
+                        </div>
+
+                        {/* Dodelave 2 */}
+                        <div className="grid gap-1 px-2 pb-2 w-full" style={{ gridTemplateColumns: `repeat(${dodelaveVrstniRed.length}, minmax(0, 1fr))` }}>
+                          {dodelaveVrstniRed.map((d) => {
+                            const cas = d.getCas(cas2);
+                            const jeZaprt = isTaskClosed(nalog.stevilkaNaloga, d.taskType, 2);
+                            const naslov = `${d.label}: ${formatirajCas(cas)}`;
+                            return (
+                              <div key={`p2-${d.taskType}`} className="min-h-[28px]">
+                                {cas > 0 ? (
+                                  <div
+                                    className={`px-2 py-1 rounded text-[11px] leading-tight border border-black/10 select-none ${getDodelavaBarva(d.taskType)} ${
+                                      jeZaprt ? 'opacity-50 grayscale cursor-default' : 'cursor-pointer hover:opacity-90'
+                                    }`}
+                                    title={jeZaprt ? `${naslov} (zaključeno)` : `${naslov} (klik za zapiranje)`}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => { if (!jeZaprt) handleCloseTask(nalog.stevilkaNaloga, d.taskType, 2); }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        if (!jeZaprt) handleCloseTask(nalog.stevilkaNaloga, d.taskType, 2);
+                                      }
+                                    }}
+                                  >
+                                    <div className="truncate">{d.label}: {formatirajCas(cas)}</div>
+                                  </div>
+                                ) : <div className="h-[28px]" />}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Obremenitev strojev */}
+            <div className="mt-6">
+              <div className="flex items-baseline justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">Obremenitev strojev</h3>
+                  <p className="text-sm text-gray-600">Skupni čas po storitvah</p>
+                </div>
+              </div>
+              {obremenitevStoritev.length === 0 ? (
+                <div className="mt-3 text-sm text-gray-500">Ni podatkov o obremenitvi.</div>
+              ) : (
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {obremenitevStoritev.map((storitev) => (
+                    <div key={storitev.naziv} className={`rounded-lg p-3 border border-black/10 ${getDodelavaBarva(storitev.naziv)}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold">{storitev.naziv}</h4>
+                        <span className="text-sm font-extrabold">{formatirajCas(storitev.skupniCas)}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {storitev.nalogi.map((n) => (
+                          <div key={n.stevilkaNaloga} className="flex items-center justify-between text-xs">
+                            <span>#{n.stevilkaNaloga}</span>
+                            <span className="font-semibold">{formatirajCas(n.cas)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      </div>
+        )}
     </div>
   );
 };
