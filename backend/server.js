@@ -989,7 +989,7 @@ app.post('/api/izsekovalna-orodja', async (req, res) => {
 
     const requestedZapRaw = body.ZaporednaStevilka ?? body.zaporednaStevilka ?? body.zaporedna ?? null;
     let requestedZap = Number(requestedZapRaw);
-    if (!Number.isFinite(requestedZap) || requestedZap <= 0) requestedZap = NaN as any;
+    if (!Number.isFinite(requestedZap) || requestedZap <= 0) requestedZap = NaN;
 
     // Če ni zaporedne številke: zasedi prvo prosto mesto (IsFree=1), sicer dodaj na konec.
     let zap = requestedZap;
