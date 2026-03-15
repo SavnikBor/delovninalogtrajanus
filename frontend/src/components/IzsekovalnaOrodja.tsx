@@ -6,6 +6,7 @@ type KupecMin = { KupecID: number; Naziv: string };
 type IzsekovalnoOrodje = {
   OrodjeID: number;
   ZaporednaStevilka: number;
+  IsFree: boolean;
   StevilkaNaloga: number | null;
   Opis: string;
   VelikostKoncnegaProdukta: string;
@@ -21,6 +22,7 @@ function normalizeTool(r: any): IzsekovalnoOrodje {
   return {
     OrodjeID: Number(r?.OrodjeID ?? r?.orodjeID ?? r?.id ?? 0) || 0,
     ZaporednaStevilka: Number(r?.ZaporednaStevilka ?? r?.zaporednaStevilka ?? 0) || 0,
+    IsFree: !!(r?.IsFree ?? r?.isFree ?? false),
     StevilkaNaloga: r?.StevilkaNaloga == null ? null : (Number(r.StevilkaNaloga) || null),
     Opis: String(r?.Opis ?? ''),
     VelikostKoncnegaProdukta: String(r?.VelikostKoncnegaProdukta ?? ''),
@@ -147,6 +149,7 @@ export default function IzsekovalnaOrodja() {
     return arr.filter((r) => {
       const hay = [
         r.ZaporednaStevilka,
+        r.IsFree ? 'prosto' : '',
         r.StevilkaNaloga ?? '',
         r.Opis,
         r.VelikostKoncnegaProdukta,
@@ -166,10 +169,11 @@ export default function IzsekovalnaOrodja() {
   }, [kupci, form.StrankaNaziv]);
 
   const openAdd = () => {
+    const firstFree = (rows || []).find((r) => r.IsFree);
     setEditId(null);
     setForm({
       ...emptyForm,
-      ZaporednaStevilka: String(nextSerial),
+      ZaporednaStevilka: String(firstFree?.ZaporednaStevilka || nextSerial),
     });
     setModalOpen(true);
     setStrankaDropdownOpen(false);
@@ -238,7 +242,7 @@ export default function IzsekovalnaOrodja() {
   };
 
   const remove = async (id: number) => {
-    if (!confirm('Res izbrišem izsekovalno orodje?')) return;
+    if (!confirm('Res sprostim mesto? (zaporedna številka ostane, podatki se izbrišejo)')) return;
     setDeleteBusyId(id);
     setErr('');
     try {
@@ -490,7 +494,7 @@ export default function IzsekovalnaOrodja() {
         <div>
           <div className="text-2xl font-bold">Izsekovalna orodja</div>
           <div className="text-sm text-gray-600">
-            Seznam izsekovalnih orodij (dodaj/uredi/izbriši). Brisanje ne renumerira obstoječih vrstic (luknje ostanejo).
+            Seznam izsekovalnih orodij (dodaj/uredi/sprosti mesto). Ko sprostiš mesto, zaporedna številka ostane in se lahko kasneje ponovno zasede.
           </div>
         </div>
         {headerRight}
@@ -530,10 +534,12 @@ export default function IzsekovalnaOrodja() {
             </thead>
             <tbody>
               {filtered.map((r) => (
-                <tr key={r.OrodjeID} className="border-b last:border-b-0 hover:bg-gray-50">
+                <tr key={r.OrodjeID} className={`border-b last:border-b-0 hover:bg-gray-50 ${r.IsFree ? 'bg-gray-50' : ''}`}>
                   <td className="p-2 font-semibold whitespace-nowrap">{r.ZaporednaStevilka}</td>
                   <td className="p-2 whitespace-nowrap">{r.StevilkaNaloga ?? ''}</td>
-                  <td className="p-2 min-w-[280px]">{r.Opis}</td>
+                  <td className="p-2 min-w-[280px]">
+                    {r.IsFree ? <span className="text-xs text-gray-500 italic">(prosto mesto)</span> : r.Opis}
+                  </td>
                   <td className="p-2 whitespace-nowrap">{r.VelikostKoncnegaProdukta}</td>
                   <td className="p-2 whitespace-nowrap">{r.LetoIzdelave ?? ''}</td>
                   <td className="p-2 min-w-[220px]">
@@ -547,7 +553,7 @@ export default function IzsekovalnaOrodja() {
                       className="px-2 py-1 rounded bg-gray-200 hover:bg-gray-300 mr-2"
                       onClick={() => openEdit(r)}
                     >
-                      Uredi
+                      {r.IsFree ? 'Zapolni' : 'Uredi'}
                     </button>
                     <button
                       type="button"
@@ -555,7 +561,7 @@ export default function IzsekovalnaOrodja() {
                       onClick={() => remove(r.OrodjeID)}
                       disabled={deleteBusyId === r.OrodjeID}
                     >
-                      {deleteBusyId === r.OrodjeID ? 'Brišem…' : 'Izbriši'}
+                      {deleteBusyId === r.OrodjeID ? 'Shranjujem…' : 'Sprosti'}
                     </button>
                   </td>
                 </tr>

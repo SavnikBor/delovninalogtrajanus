@@ -854,6 +854,7 @@ function normalizeIzsekovalnoOrodjeRow(r) {
   return {
     OrodjeID: Number(row.OrodjeID ?? row.orodjeID ?? row.id ?? 0) || 0,
     ZaporednaStevilka: Number(row.ZaporednaStevilka ?? row.zaporednaStevilka ?? row.stevilka ?? 0) || 0,
+    IsFree: !!(row.IsFree ?? row.isFree ?? row.ProstoMesto ?? row.prostoMesto ?? false),
     StevilkaNaloga: (row.StevilkaNaloga == null ? null : (Number(row.StevilkaNaloga) || null)),
     Opis: (row.Opis ?? '').toString(),
     VelikostKoncnegaProdukta: (row.VelikostKoncnegaProdukta ?? '').toString(),
@@ -874,6 +875,7 @@ async function ensureIzsekovalnaOrodjaSchema(pool) {
       CREATE TABLE dbo.IzsekovalnoOrodje (
         OrodjeID INT IDENTITY(1,1) NOT NULL CONSTRAINT PK_IzsekovalnoOrodje PRIMARY KEY,
         ZaporednaStevilka INT NOT NULL,
+        IsFree BIT NOT NULL CONSTRAINT DF_IzsekovalnoOrodje_IsFree DEFAULT(0),
         StevilkaNaloga INT NULL,
         Opis NVARCHAR(500) NULL,
         VelikostKoncnegaProdukta NVARCHAR(100) NULL,
@@ -884,6 +886,16 @@ async function ensureIzsekovalnaOrodjaSchema(pool) {
         CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_IzsekovalnoOrodje_CreatedAt DEFAULT (SYSUTCDATETIME()),
         UpdatedAt DATETIME2 NULL
       );
+    END;
+
+    IF NOT EXISTS (
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA='dbo' AND TABLE_NAME='IzsekovalnoOrodje' AND COLUMN_NAME='IsFree'
+    )
+    BEGIN
+      ALTER TABLE dbo.IzsekovalnoOrodje
+      ADD IsFree BIT NOT NULL CONSTRAINT DF_IzsekovalnoOrodje_IsFree DEFAULT(0);
     END;
 
     IF NOT EXISTS (
@@ -952,7 +964,7 @@ app.get('/api/izsekovalna-orodja', async (req, res) => {
     await ensureIzsekovalnaOrodjaSchema(pool);
     await maybeSeedIzsekovalnaOrodja(pool);
     const result = await pool.request().query(`
-      SELECT OrodjeID, ZaporednaStevilka, StevilkaNaloga, Opis, VelikostKoncnegaProdukta, LetoIzdelave, KupecID, StrankaNaziv, Komentar, CreatedAt, UpdatedAt
+      SELECT OrodjeID, ZaporednaStevilka, IsFree, StevilkaNaloga, Opis, VelikostKoncnegaProdukta, LetoIzdelave, KupecID, StrankaNaziv, Komentar, CreatedAt, UpdatedAt
       FROM dbo.IzsekovalnoOrodje
       ORDER BY ZaporednaStevilka ASC
     `);
@@ -975,15 +987,36 @@ app.post('/api/izsekovalna-orodja', async (req, res) => {
     await ensureIzsekovalnaOrodjaSchema(pool);
     await maybeSeedIzsekovalnaOrodja(pool);
 
-    let zap = Number(body.ZaporednaStevilka ?? body.zaporednaStevilka ?? body.zaporedna ?? NaN);
+    const requestedZapRaw = body.ZaporednaStevilka ?? body.zaporednaStevilka ?? body.zaporedna ?? null;
+    let requestedZap = Number(requestedZapRaw);
+    if (!Number.isFinite(requestedZap) || requestedZap <= 0) requestedZap = NaN as any;
+
+    // Če ni zaporedne številke: zasedi prvo prosto mesto (IsFree=1), sicer dodaj na konec.
+    let zap = requestedZap;
     if (!Number.isFinite(zap) || zap <= 0) {
-      const maxRes = await pool.request().query(`SELECT ISNULL(MAX(ZaporednaStevilka), 0) AS mx FROM dbo.IzsekovalnoOrodje`);
-      const mx = maxRes.recordset && maxRes.recordset[0] ? Number(maxRes.recordset[0].mx) : 0;
-      zap = (Number.isFinite(mx) ? mx : 0) + 1;
+      const freeRes = await pool.request().query(`
+        SELECT TOP 1 ZaporednaStevilka
+        FROM dbo.IzsekovalnoOrodje
+        WHERE IsFree = 1
+        ORDER BY ZaporednaStevilka ASC
+      `);
+      const freeZap = freeRes.recordset && freeRes.recordset[0] ? Number(freeRes.recordset[0].ZaporednaStevilka) : null;
+      if (freeZap && Number.isFinite(freeZap)) {
+        zap = freeZap;
+      } else {
+        const maxRes = await pool.request().query(`SELECT ISNULL(MAX(ZaporednaStevilka), 0) AS mx FROM dbo.IzsekovalnoOrodje`);
+        const mx = maxRes.recordset && maxRes.recordset[0] ? Number(maxRes.recordset[0].mx) : 0;
+        zap = (Number.isFinite(mx) ? mx : 0) + 1;
+      }
     }
 
-    const exists = await pool.request().input('zap', sql.Int, zap).query(`SELECT TOP 1 OrodjeID FROM dbo.IzsekovalnoOrodje WHERE ZaporednaStevilka=@zap`);
-    if (exists.recordset && exists.recordset.length > 0) {
+    // Če zap že obstaja in je prosto -> zapolni; če obstaja in NI prosto -> conflict.
+    const exists = await pool.request()
+      .input('zap', sql.Int, zap)
+      .query(`SELECT TOP 1 OrodjeID, IsFree FROM dbo.IzsekovalnoOrodje WHERE ZaporednaStevilka=@zap`);
+    const existing = exists.recordset && exists.recordset[0] ? exists.recordset[0] : null;
+    const canFill = existing && (existing.IsFree === true || existing.IsFree === 1);
+    if (existing && !canFill) {
       return res.status(409).json({ ok: false, error: `Zaporedna številka ${zap} že obstaja.` });
     }
 
@@ -1005,18 +1038,40 @@ app.post('/api/izsekovalna-orodja', async (req, res) => {
     request.input('StrankaNaziv', sql.NVarChar(255), strankaNaziv);
     request.input('Komentar', sql.NVarChar(sql.MAX), (body.Komentar ?? '').toString());
 
-    const ins = await request.query(`
-      INSERT INTO dbo.IzsekovalnoOrodje
-        (ZaporednaStevilka, StevilkaNaloga, Opis, VelikostKoncnegaProdukta, LetoIzdelave, KupecID, StrankaNaziv, Komentar)
-      VALUES
-        (@ZaporednaStevilka, @StevilkaNaloga, @Opis, @Velikost, @LetoIzdelave, @KupecID, @StrankaNaziv, @Komentar);
-      SELECT TOP 1 *
-      FROM dbo.IzsekovalnoOrodje
-      WHERE OrodjeID = SCOPE_IDENTITY();
-    `);
-
-    const row = ins.recordset && ins.recordset[0] ? normalizeIzsekovalnoOrodjeRow(ins.recordset[0]) : null;
-    return res.json({ ok: true, orodje: row });
+    if (canFill) {
+      request.input('id', sql.Int, Number(existing.OrodjeID));
+      const upd = await request.query(`
+        UPDATE dbo.IzsekovalnoOrodje
+        SET
+          IsFree = 0,
+          StevilkaNaloga = @StevilkaNaloga,
+          Opis = @Opis,
+          VelikostKoncnegaProdukta = @Velikost,
+          LetoIzdelave = @LetoIzdelave,
+          KupecID = @KupecID,
+          StrankaNaziv = @StrankaNaziv,
+          Komentar = @Komentar,
+          UpdatedAt = SYSUTCDATETIME()
+        WHERE OrodjeID = @id;
+        SELECT TOP 1 *
+        FROM dbo.IzsekovalnoOrodje
+        WHERE OrodjeID = @id;
+      `);
+      const row = upd.recordset && upd.recordset[0] ? normalizeIzsekovalnoOrodjeRow(upd.recordset[0]) : null;
+      return res.json({ ok: true, orodje: row });
+    } else {
+      const ins = await request.query(`
+        INSERT INTO dbo.IzsekovalnoOrodje
+          (ZaporednaStevilka, IsFree, StevilkaNaloga, Opis, VelikostKoncnegaProdukta, LetoIzdelave, KupecID, StrankaNaziv, Komentar)
+        VALUES
+          (@ZaporednaStevilka, 0, @StevilkaNaloga, @Opis, @Velikost, @LetoIzdelave, @KupecID, @StrankaNaziv, @Komentar);
+        SELECT TOP 1 *
+        FROM dbo.IzsekovalnoOrodje
+        WHERE OrodjeID = SCOPE_IDENTITY();
+      `);
+      const row = ins.recordset && ins.recordset[0] ? normalizeIzsekovalnoOrodjeRow(ins.recordset[0]) : null;
+      return res.json({ ok: true, orodje: row });
+    }
   } catch (e) {
     console.error('Napaka POST /api/izsekovalna-orodja:', e);
     return res.status(500).json({ ok: false, error: 'Napaka pri dodajanju izsekovalnega orodja', details: e && e.message ? e.message : String(e) });
@@ -1069,18 +1124,34 @@ app.post('/api/izsekovalna-orodja/import', async (req, res) => {
         r.input('Komentar', sql.NVarChar(sql.MAX), (raw?.Komentar ?? raw?.komentar ?? '').toString());
 
         const ins = await r.query(`
-          DECLARE @didInsert INT = 0;
-          IF NOT EXISTS (SELECT 1 FROM dbo.IzsekovalnoOrodje WHERE ZaporednaStevilka=@ZaporednaStevilka)
+          DECLARE @didWrite INT = 0;
+          IF EXISTS (SELECT 1 FROM dbo.IzsekovalnoOrodje WHERE ZaporednaStevilka=@ZaporednaStevilka AND IsFree=1)
+          BEGIN
+            UPDATE dbo.IzsekovalnoOrodje
+            SET
+              IsFree=0,
+              StevilkaNaloga=@StevilkaNaloga,
+              Opis=@Opis,
+              VelikostKoncnegaProdukta=@Velikost,
+              LetoIzdelave=@LetoIzdelave,
+              KupecID=@KupecID,
+              StrankaNaziv=@StrankaNaziv,
+              Komentar=@Komentar,
+              UpdatedAt=SYSUTCDATETIME()
+            WHERE ZaporednaStevilka=@ZaporednaStevilka;
+            SET @didWrite = 1;
+          END
+          ELSE IF NOT EXISTS (SELECT 1 FROM dbo.IzsekovalnoOrodje WHERE ZaporednaStevilka=@ZaporednaStevilka)
           BEGIN
             INSERT INTO dbo.IzsekovalnoOrodje
-              (ZaporednaStevilka, StevilkaNaloga, Opis, VelikostKoncnegaProdukta, LetoIzdelave, KupecID, StrankaNaziv, Komentar)
+              (ZaporednaStevilka, IsFree, StevilkaNaloga, Opis, VelikostKoncnegaProdukta, LetoIzdelave, KupecID, StrankaNaziv, Komentar)
             VALUES
-              (@ZaporednaStevilka, @StevilkaNaloga, @Opis, @Velikost, @LetoIzdelave, @KupecID, @StrankaNaziv, @Komentar);
-            SET @didInsert = 1;
+              (@ZaporednaStevilka, 0, @StevilkaNaloga, @Opis, @Velikost, @LetoIzdelave, @KupecID, @StrankaNaziv, @Komentar);
+            SET @didWrite = 1;
           END
-          SELECT @didInsert AS didInsert;
+          SELECT @didWrite AS didWrite;
         `);
-        const did = ins.recordset && ins.recordset[0] ? Number(ins.recordset[0].didInsert) : 0;
+        const did = ins.recordset && ins.recordset[0] ? Number(ins.recordset[0].didWrite) : 0;
         if (did === 1) inserted++;
         else skipped++;
       }
@@ -1153,6 +1224,7 @@ app.post('/api/izsekovalna-orodja/:id', async (req, res) => {
       UPDATE dbo.IzsekovalnoOrodje
       SET
         ZaporednaStevilka=@ZaporednaStevilka,
+        IsFree=0,
         StevilkaNaloga=@StevilkaNaloga,
         Opis=@Opis,
         VelikostKoncnegaProdukta=@Velikost,
@@ -1177,6 +1249,7 @@ app.post('/api/izsekovalna-orodja/:id', async (req, res) => {
 });
 
 // DELETE: izbriši izsekovalno orodje (luknje so dovoljene; ne renumeriraj)
+// DELETE: sprosti mesto (pusti ZaporednaStevilka, izbriše podatke)
 app.delete('/api/izsekovalna-orodja/:id', async (req, res) => {
   let pool = null;
   try {
@@ -1187,7 +1260,20 @@ app.delete('/api/izsekovalna-orodja/:id', async (req, res) => {
     await ensureIzsekovalnaOrodjaSchema(pool);
     const exist = await pool.request().input('id', sql.Int, id).query(`SELECT TOP 1 OrodjeID FROM dbo.IzsekovalnoOrodje WHERE OrodjeID=@id`);
     if (!exist.recordset || exist.recordset.length === 0) return res.status(404).json({ ok: false, error: 'Vrstica ni najdena.' });
-    await pool.request().input('id', sql.Int, id).query(`DELETE FROM dbo.IzsekovalnoOrodje WHERE OrodjeID=@id`);
+    await pool.request().input('id', sql.Int, id).query(`
+      UPDATE dbo.IzsekovalnoOrodje
+      SET
+        IsFree = 1,
+        StevilkaNaloga = NULL,
+        Opis = NULL,
+        VelikostKoncnegaProdukta = NULL,
+        LetoIzdelave = NULL,
+        KupecID = NULL,
+        StrankaNaziv = NULL,
+        Komentar = NULL,
+        UpdatedAt = SYSUTCDATETIME()
+      WHERE OrodjeID=@id
+    `);
     return res.json({ ok: true });
   } catch (e) {
     console.error('Napaka DELETE /api/izsekovalna-orodja/:id:', e);

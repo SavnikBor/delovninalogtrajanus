@@ -6,6 +6,7 @@ BEGIN
   CREATE TABLE [dbo].[IzsekovalnoOrodje] (
     [OrodjeID] INT IDENTITY(1,1) NOT NULL CONSTRAINT [PK_IzsekovalnoOrodje] PRIMARY KEY,
     [ZaporednaStevilka] INT NOT NULL,
+    [IsFree] BIT NOT NULL CONSTRAINT [DF_IzsekovalnoOrodje_IsFree] DEFAULT (0),
     [StevilkaNaloga] INT NULL,
     [Opis] NVARCHAR(500) NULL,
     [VelikostKoncnegaProdukta] NVARCHAR(100) NULL,
@@ -16,6 +17,17 @@ BEGIN
     [CreatedAt] DATETIME2 NOT NULL CONSTRAINT [DF_IzsekovalnoOrodje_CreatedAt] DEFAULT (SYSUTCDATETIME()),
     [UpdatedAt] DATETIME2 NULL
   );
+END
+GO
+
+IF NOT EXISTS (
+  SELECT 1
+  FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA='dbo' AND TABLE_NAME='IzsekovalnoOrodje' AND COLUMN_NAME='IsFree'
+)
+BEGIN
+  ALTER TABLE [dbo].[IzsekovalnoOrodje]
+  ADD [IsFree] BIT NOT NULL CONSTRAINT [DF_IzsekovalnoOrodje_IsFree] DEFAULT (0);
 END
 GO
 
