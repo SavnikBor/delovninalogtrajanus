@@ -1100,8 +1100,9 @@ app.post('/api/izsekovalna-orodja/import', async (req, res) => {
 });
 
 // POST: posodobi izsekovalno orodje (namerno POST, enako kot pri /api/kupec/:id)
-// Pomembno: :id naj sprejme samo številke, da se "import" ne ujame kot id.
-app.post('/api/izsekovalna-orodja/:id(\\d+)', async (req, res) => {
+// Opomba: route regex (npr. :id(\\d+)) ni kompatibilen z vsemi router verzijami (Express 5 stack),
+// zato validacijo naredimo v handlerju.
+app.post('/api/izsekovalna-orodja/:id', async (req, res) => {
   let pool = null;
   try {
     const id = parseInt(String(req.params.id || ''), 10);
@@ -1176,8 +1177,7 @@ app.post('/api/izsekovalna-orodja/:id(\\d+)', async (req, res) => {
 });
 
 // DELETE: izbriši izsekovalno orodje (luknje so dovoljene; ne renumeriraj)
-// Pomembno: :id naj sprejme samo številke, da se "import" ne ujame kot id.
-app.delete('/api/izsekovalna-orodja/:id(\\d+)', async (req, res) => {
+app.delete('/api/izsekovalna-orodja/:id', async (req, res) => {
   let pool = null;
   try {
     const id = parseInt(String(req.params.id || ''), 10);
