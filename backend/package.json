@@ -1,8 +1,9 @@
 {
   "scripts": {
-    "build": "tsc",
-    "start": "node server.js",
     "dev": "node server.js",
+    "dev:watch": "node --watch server.js",
+    "start": "node server.js",
+    "build:legacy-ts": "tsc",
     "test": "node --test src/cenikImportUtils.test.js"
   },
   "dependencies": {

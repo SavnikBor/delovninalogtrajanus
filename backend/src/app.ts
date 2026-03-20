@@ -13,6 +13,8 @@ import { parseEmailWithAI, normalizeParsedEmail, parseEmailToRazbraniWithAI } fr
 import { ParsedEmailFormPrefill } from './types/parsedEmail';
 import { RazbraniPodatkiEnvelope } from './types/razbraniPodatki';
 
+// LEGACY: ta Express aplikacija ni kanonični backend. Za API v dev/prod uporabljaj backend/server.js (glej backend/README.md).
+
 // Funkcija za formatiranje časa iz ur v minute
 const formatirajCas = (ure: number): number => {
   return Math.round(ure * 60); // Pretvori ure v minute in zaokroži

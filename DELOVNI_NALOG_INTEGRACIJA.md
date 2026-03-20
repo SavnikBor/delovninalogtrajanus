@@ -1,5 +1,7 @@
 # Integracija Cenikov Trajanus z aplikacijo Delovni nalog
 
+**Backend:** kanonični HTTP API teče iz **`backend/server.js`** (zagon iz korena: `npm run server` / `npm start`, ali iz `backend/`: `npm run dev`). Podrobnosti: [`backend/README.md`](backend/README.md).
+
 Ta dokument opisuje, kaj mora aplikacija **Delovni nalog** implementirati, da Ceniki Trajanus lahko pridobijo realne čase po dodelavah in jih uporabljajo pri izračunu cen.
 
 ---
