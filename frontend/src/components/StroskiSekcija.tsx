@@ -31,9 +31,11 @@ interface StroskiSekcijaProps {
   dobavljeno?: boolean;
   reklamacijaPodatki?: ReklamacijaPodatki;
   onReklamacijaChange?: (rekl: ReklamacijaPodatki) => void;
+  skupnaCenaIzbrana?: boolean;
+  onSkupnaCenaChange?: (v: boolean) => void;
 }
 
-const StroskiSekcija: React.FC<StroskiSekcijaProps> = ({ disabled = false, zakljucen = false, zakljucen1, zakljucen2, onStroskiChange, stevilkaNaloga = 0, tiskPodatki, stroskiPodatki, dobavljeno = false, reklamacijaPodatki, onReklamacijaChange }) => {
+const StroskiSekcija: React.FC<StroskiSekcijaProps> = ({ disabled = false, zakljucen = false, zakljucen1, zakljucen2, onStroskiChange, stevilkaNaloga = 0, tiskPodatki, stroskiPodatki, dobavljeno = false, reklamacijaPodatki, onReklamacijaChange, skupnaCenaIzbrana = false, onSkupnaCenaChange }) => {
   const jeZakljucen1 = (typeof zakljucen1 === 'boolean') ? zakljucen1 : zakljucen;
   const jeZakljucen2 = (typeof zakljucen2 === 'boolean') ? zakljucen2 : zakljucen;
   const jeZakljucenOba = jeZakljucen1 && jeZakljucen2;
@@ -64,12 +66,32 @@ const StroskiSekcija: React.FC<StroskiSekcijaProps> = ({ disabled = false, zaklj
     });
   };
 
-  // Funkcija za formatiranje številk kot denar
-  const formatDenar = (vrednost: string): string => {
-    if (!vrednost) return '';
-    const stevilo = parseFloat(vrednost);
-    if (isNaN(stevilo)) return vrednost;
-    return stevilo.toFixed(2);
+  // Parse denar iz različnih zapisov:
+  // - "24.12" iz SQL naj pomeni 24,12 (decimalna pika)
+  // - "1.234,56" pomeni 1234,56 (tisočice z piko, decimalna vejica)
+  // - "1234,56" pomeni 1234,56
+  const parseDenar = (raw: any): number | null => {
+    if (raw === null || raw === undefined) return null;
+    const s = String(raw).trim();
+    if (!s) return null;
+    // Če je prisotna vejica, jo tretiraj kot decimalno ločilo; pike so tisočice.
+    if (s.includes(',')) {
+      const n = Number(s.replace(/\./g, '').replace(',', '.'));
+      return Number.isFinite(n) ? n : null;
+    }
+    // Če ni vejice, ampak je pika: odločimo ali je to decimalna pika (npr. 24.12) ali tisočice.
+    if (s.includes('.')) {
+      // npr. 24.12 (2 decimalni mesti) => decimalna pika
+      if (/^\d+\.\d{1,2}$/.test(s)) {
+        const n = Number(s);
+        return Number.isFinite(n) ? n : null;
+      }
+      // sicer odstrani pike kot tisočice
+      const n = Number(s.replace(/\./g, ''));
+      return Number.isFinite(n) ? n : null;
+    }
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
   };
 
   const formatirajCeno = (cena: number) => {
@@ -82,11 +104,11 @@ const StroskiSekcija: React.FC<StroskiSekcijaProps> = ({ disabled = false, zaklj
 
   // Funkcija za izračun skupaj in skupajZDDV iz inputov
   const izracunajSkupaj = (podatki: StroskiPodatki) => {
-    const graficna = parseFloat((podatki.graficnaPriprava || '').replace(/\./g, '').replace(',', '.')) || 0;
-    const klise = parseFloat((podatki.cenaKlišeja || '').replace(/\./g, '').replace(',', '.')) || 0;
-    const orodje = parseFloat((podatki.cenaIzsekovalnegaOrodja || '').replace(/\./g, '').replace(',', '.')) || 0;
-    const vzorec = parseFloat((podatki.cenaVzorca || '').replace(/\./g, '').replace(',', '.')) || 0;
-    const brezDDV = parseFloat((podatki.cenaBrezDDV || '').replace(/\./g, '').replace(',', '.')) || 0;
+    const graficna = parseDenar(podatki.graficnaPriprava) || 0;
+    const klise = parseDenar(podatki.cenaKlišeja) || 0;
+    const orodje = parseDenar(podatki.cenaIzsekovalnegaOrodja) || 0;
+    const vzorec = parseDenar(podatki.cenaVzorca) || 0;
+    const brezDDV = parseDenar(podatki.cenaBrezDDV) || 0;
     const skupaj = graficna + klise + orodje + vzorec + brezDDV;
     const ddv = skupaj * 0.22;
     return { skupaj, skupajZDDV: skupaj + ddv };
@@ -100,7 +122,7 @@ const StroskiSekcija: React.FC<StroskiSekcijaProps> = ({ disabled = false, zaklj
 
   // Funkcija za izračun cene na kos za vsak strošek posebej
   const izracunajCenoNaKos = (skupaj: number, tisk: any) => {
-    const steviloKosov = tisk?.steviloKosov ? parseFloat((tisk.steviloKosov || '').replace(/\./g, '').replace(',', '.')) : 0;
+    const steviloKosov = tisk?.steviloKosov ? (parseDenar((tisk.steviloKosov || '').toString()) || 0) : 0;
     if (!steviloKosov || !isFinite(skupaj)) return 0;
     return skupaj / steviloKosov;
   };
@@ -108,14 +130,13 @@ const StroskiSekcija: React.FC<StroskiSekcijaProps> = ({ disabled = false, zaklj
   const renderStroskiForm = (stroskiIndex: 1 | 2, podatki: StroskiPodatki) => {
     const zakljucenLocal = stroskiIndex === 1 ? jeZakljucen1 : jeZakljucen2;
     const zakljucen = zakljucenLocal;
-    const naslov = `Stroški ${stroskiIndex}`;
+    const naslov = `Cena ${stroskiIndex}`;
     const tisk = stroskiIndex === 1 ? tiskPodatki?.tisk1 : tiskPodatki?.tisk2;
     const skupaj = stroskiIndex === 1 ? skupaj1.skupaj : skupaj2.skupaj;
     const cenaNaKos = izracunajCenoNaKos(skupaj, tisk);
     const formatirajCenoNaKos = (cena: number) => new Intl.NumberFormat('sl-SI', { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(cena);
     const steviloKosov = stroskiIndex === 1 ? tiskPodatki?.tisk1?.steviloKosov : tiskPodatki?.tisk2?.steviloKosov;
-    // Pretvori decimalno vejico v piko in odstrani tisočice
-    const steviloKosovNum = steviloKosov ? parseFloat(steviloKosov.replace(/\./g, '').replace(',', '.')) : 0;
+    const steviloKosovNum = steviloKosov ? (parseDenar(steviloKosov) || 0) : 0;
 
     return (
       <div className={`bg-white p-3 border rounded-lg shadow-sm ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucen ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}>
@@ -240,7 +261,7 @@ const StroskiSekcija: React.FC<StroskiSekcijaProps> = ({ disabled = false, zaklj
 
   return (
     <div className="space-y-2">
-      <h2 className="text-lg font-bold text-gray-900">Stroški</h2>
+      <h2 className="text-lg font-bold text-gray-900">Prodajna cena</h2>
       <div className={`grid grid-cols-1 lg:grid-cols-2 gap-3 ${jeZakljucenOba ? 'bg-red-50 p-3 border border-red-200 rounded-lg' : ''}`}>
         {renderStroskiForm(1, podatki1)}
         {renderStroskiForm(2, podatki2)}
@@ -325,8 +346,18 @@ const StroskiSekcija: React.FC<StroskiSekcijaProps> = ({ disabled = false, zaklj
             </>
           )}
         </div>
-        {/* Skupaj (desno) */}
+        {/* Skupaj (desno) - Skupna cena checkbox levo od Skupaj brez DDV */}
         <div className="flex flex-row gap-6 items-center">
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={!!skupnaCenaIzbrana}
+              onChange={e => onSkupnaCenaChange?.(e.target.checked)}
+              disabled={disabled || zakljucen || dobavljeno}
+              className="w-4 h-4"
+            />
+            <span className="font-medium">Skupna cena</span>
+          </label>
           <div className="text-sm"><b>Skupaj brez DDV:</b> {formatirajCeno(skupnaCena)}</div>
           <div className="text-sm"><b>DDV (22%):</b> {formatirajCeno(skupniDDV)}</div>
           <div className="text-sm"><b>Skupaj z DDV:</b> {formatirajCeno(skupnaCenaZDDV)}</div>
@@ -354,7 +385,6 @@ const StroskiSekcija: React.FC<StroskiSekcijaProps> = ({ disabled = false, zaklj
                 onClick={() => {
                   if (stevilkaNaloga) {
                     navigator.clipboard.writeText(`${stevilkaNaloga}_${tiskPodatki.tisk1.predmet}`);
-                    alert('Kopirano v odložišče!');
                   }
                 }}
                 className={`px-3 py-2 ${stevilkaNaloga ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' : 'bg-gray-300 cursor-not-allowed'} text-white rounded-md focus:outline-none focus:ring-2`}
@@ -418,7 +448,6 @@ const StroskiSekcija: React.FC<StroskiSekcijaProps> = ({ disabled = false, zaklj
                 onClick={() => {
                   if (stevilkaNaloga) {
                     navigator.clipboard.writeText(`${stevilkaNaloga}_${tiskPodatki.tisk2.predmet}`);
-                    alert('Kopirano v odložišče!');
                   }
                 }}
                 className={`px-3 py-2 ${stevilkaNaloga ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' : 'bg-gray-300 cursor-not-allowed'} text-white rounded-md focus:outline-none focus:ring-2`}

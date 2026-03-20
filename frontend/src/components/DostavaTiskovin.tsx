@@ -5,22 +5,49 @@ interface DostavaTiskovinProps {
 	onOpenNalog: (stevilkaNaloga: number) => void;
 }
 
-const formatDatumInUra = (datum?: string, ura?: string) => {
-	if (!datum && !ura) return '';
-	if (!datum) return (ura || '').trim();
-	if (!ura) return (datum || '').trim();
-	return `${(datum || '').trim()} ${(ura || '').trim()}`;
+const formatDatumSI = (datum?: string): string => {
+	if (!datum) return '';
+	const s = String(datum).trim();
+	// ISO (YYYY-MM-DD or YYYY-MM-DDTHH:mm...)
+	const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+	if (iso) {
+		const y = iso[1];
+		const m = String(parseInt(iso[2], 10));
+		const d = String(parseInt(iso[3], 10));
+		return `${d}.${m}.${y}`;
+	}
+	// EU (dd.mm.yyyy)
+	const eu = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);
+	if (eu) {
+		const d = String(parseInt(eu[1], 10));
+		const m = String(parseInt(eu[2], 10));
+		const y = eu[3].length === 2 ? `20${eu[3]}` : eu[3];
+		return `${d}.${m}.${y}`;
+	}
+	// fallback: če je kaj v stilu "...T00:00:00.000Z"
+	const tSplit = s.split('T')[0];
+	if (tSplit && /^\d{4}-\d{2}-\d{2}$/.test(tSplit)) return formatDatumSI(tSplit);
+	return s;
 };
 
 const parseEuDateTime = (datum?: string, ura?: string): number => {
 	if (!datum) return Number.POSITIVE_INFINITY;
-	const parts = datum.split(/[.\-\/]/).map((p: string) => p.trim());
-	// Pričakovan zapis dd.mm.yyyy
-	let d = NaN, m = NaN, y = NaN;
-	if (parts.length >= 3) {
-		d = Number(parts[0]);
-		m = Number(parts[1]);
-		y = Number(parts[2]);
+	const s = String(datum).trim();
+	let y = NaN, m = NaN, d = NaN;
+	// ISO first (YYYY-MM-DD...)
+	const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+	if (iso) {
+		y = Number(iso[1]);
+		m = Number(iso[2]);
+		d = Number(iso[3]);
+	} else {
+		// EU dd.mm.yyyy (podpira tudi -, /)
+		const parts = s.split(/[.\-\/]/).map((p: string) => p.trim());
+		if (parts.length >= 3) {
+			d = Number(parts[0]);
+			m = Number(parts[1]);
+			y = Number(parts[2]);
+		}
 	}
 	if (!y || !m || !d) return Number.POSITIVE_INFINITY;
 	const date = new Date(y, m - 1, d);
@@ -74,7 +101,7 @@ const DostavaTiskovin: React.FC<DostavaTiskovinProps> = ({ vsiNalogi, onOpenNalo
 		if (chosen.length === 0) return;
 		const htmlRows = chosen.map((n: any) => {
 			const pos = n?.podatki?.posiljanje || {};
-			const rokStr = formatDatumInUra(n?.podatki?.rokIzdelave, n?.podatki?.rokIzdelaveUra) || '-';
+			const rokStr = formatDatumSI(n?.podatki?.rokIzdelave) || '-';
 			const predmet =
 				(n?.podatki?.tisk?.tisk1?.predmet || '').toString().trim() ||
 				(n?.podatki?.tisk?.tisk2?.predmet || '').toString().trim();
@@ -195,7 +222,7 @@ const DostavaTiskovin: React.FC<DostavaTiskovinProps> = ({ vsiNalogi, onOpenNalo
 						)}
 						{elementi.map((n: any) => {
 							const pos = n?.podatki?.posiljanje || {};
-							const rokStr = formatDatumInUra(n?.podatki?.rokIzdelave, n?.podatki?.rokIzdelaveUra);
+							const rokStr = formatDatumSI(n?.podatki?.rokIzdelave);
 							const naslovLines = [
 								(pos?.naziv || '').trim(),
 								(pos?.naslov || '').trim(),
@@ -209,10 +236,18 @@ const DostavaTiskovin: React.FC<DostavaTiskovinProps> = ({ vsiNalogi, onOpenNalo
 							return (
 								<tr
 									key={String(n?.stevilkaNaloga)}
-									className="hover:bg-gray-50 cursor-pointer"
-									onClick={() => onOpenNalog(Number(n?.stevilkaNaloga))}
+									className="hover:bg-gray-50"
 								>
-									<td className="px-3 py-2 border-b whitespace-nowrap">{n?.stevilkaNaloga}</td>
+									<td className="px-3 py-2 border-b whitespace-nowrap text-blue-700">
+										<button
+											type="button"
+											onClick={() => onOpenNalog(Number(n?.stevilkaNaloga))}
+											className="underline hover:no-underline"
+											title="Odpri delovni nalog"
+										>
+											{n?.stevilkaNaloga}
+										</button>
+									</td>
 									<td className="px-3 py-2 border-b">{n?.podatki?.kupec?.Naziv || '-'}</td>
 									<td className="px-3 py-2 border-b">{predmet || '-'}</td>
 									<td className="px-3 py-2 border-b whitespace-nowrap">{rokStr || '-'}</td>

@@ -1,5 +1,28 @@
 import React, { useState, useEffect } from 'react';
 
+function safeEvalExpression(input: string): number | null {
+  const raw = String(input || '').trim();
+  if (!raw) return null;
+  if (!/^[0-9+\-*/().,\s]+$/.test(raw)) return null;
+  const s = raw.replace(/,/g, '.');
+  if (!/\d/.test(s)) return null;
+  if (s.length > 64) return null;
+  try {
+    // eslint-disable-next-line no-new-func
+    const fn = new Function(`return (${s});`);
+    const v = fn();
+    const n = typeof v === 'number' ? v : Number(v);
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatInt(n: number, mode: 'round' | 'ceil' = 'round'): string {
+  const v = mode === 'ceil' ? Math.ceil(n) : Math.round(n);
+  return Number.isFinite(v) ? String(v) : '';
+}
+
 // Definicije materialov po kategorijah
 const MATERIALI = {
   papir: [
@@ -69,7 +92,10 @@ const BARVE = [
   '4/0 barvno enostransko (CMYK)',
   '4/4 barvno obojestransko (CMYK)',
   '1/0 črno belo enostransko (K)',
-  '1/1 črno belo obojestransko (K)'
+  '1/1 črno belo obojestransko (K)',
+  '3/0 EPM',
+  '3/3 EPM',
+  '3/1 EPM/K'
 ];
 
 interface TiskPodatki {
@@ -154,13 +180,82 @@ const TiskSekcija: React.FC<TiskSekcijaProps> = ({ disabled = false, zakljucen =
     }
   );
 
+  // Auto-calc: število pol = ceil(steviloKosov / kosovNaPoli) (tisk1+tisk2).
+  // Če uporabnik ročno prepiše število pol, ob naslednji spremembi kosov/kosovNaPoli se polje še vedno posodobi,
+  // in utripne rumeno.
+  const [polFlash, setPolFlash] = useState<{ 1: boolean; 2: boolean }>({ 1: false, 2: false });
+  const [polUserTouched, setPolUserTouched] = useState<{ 1: boolean; 2: boolean }>({ 1: false, 2: false });
+
   // Sinhronizacija z props
   useEffect(() => {
+    const allMaterials: string[] = [
+      ...MATERIALI.papir,
+      ...MATERIALI.strukturiraniKarton,
+      ...MATERIALI.embalazniKarton,
+      ...MATERIALI.nalepke,
+      ...MATERIALI.valovitiKarton,
+    ];
+    const norm = (s: string) =>
+      (s || '')
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s*,\s*/g, ' ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const tokens = (s: string) => norm(s).split(' ').filter(Boolean);
+    const gramsFrom = (s: string) => {
+      const m = String(s || '').match(/(\d{2,4})\s*g/i);
+      return m ? Number(m[1]) : null;
+    };
+    const bestMaterialMatch = (raw: any): string => {
+      const input = String(raw || '').trim();
+      if (!input) return '';
+      // Exact match (case-insensitive, normalized)
+      const inNorm = norm(input);
+      const exact = allMaterials.find((m) => norm(m) === inNorm);
+      if (exact) return exact;
+
+      const inT = tokens(input);
+      const inG = gramsFrom(input);
+      let best = '';
+      let bestScore = -1;
+      for (const opt of allMaterials) {
+        const optT = tokens(opt);
+        const setA = new Set(inT);
+        const setB = new Set(optT);
+        let inter = 0;
+        for (const t of setA) if (setB.has(t)) inter++;
+        const union = new Set([...setA, ...setB]).size || 1;
+        let score = inter / union;
+        const optG = gramsFrom(opt);
+        if (inG && optG && inG === optG) score += 0.4; // močan bonus za enako gramaturo
+        if (norm(opt).startsWith(inNorm) || inNorm.startsWith(norm(opt))) score += 0.15;
+        if (score > bestScore) {
+          bestScore = score;
+          best = opt;
+        }
+      }
+      // V praksi moramo vedno mapirati (v novem dropdown-u je več materialov kot prej).
+      return best || input;
+    };
+
     const defaultObj = { predmet: '', format: '', obseg: '', steviloKosov: '', material: '', barve: '', steviloPol: '', kosovNaPoli: '', tiskaKooperant: false, kooperant: '', rokKooperanta: '', znesekKooperanta: '', b2Format: false, b1Format: false, collate: false, steviloMutacij: '1', mutacije: [] };
-    const merge1 = { ...defaultObj, ...(tiskPodatki?.tisk1 || {}) };
-    const merge2 = { ...defaultObj, ...(tiskPodatki?.tisk2 || {}) };
+    const merge1Raw = { ...defaultObj, ...(tiskPodatki?.tisk1 || {}) };
+    const merge2Raw = { ...defaultObj, ...(tiskPodatki?.tisk2 || {}) };
+    const merge1 = { ...merge1Raw, material: bestMaterialMatch((merge1Raw as any).material) };
+    const merge2 = { ...merge2Raw, material: bestMaterialMatch((merge2Raw as any).material) };
     setTisk1(merge1);
     setTisk2(merge2);
+
+    // Če smo material "preslikali" na novo ime, posodobi tudi parent state (da se shrani z novim imenom).
+    const changed1 = String(merge1Raw.material || '') !== String(merge1.material || '');
+    const changed2 = String(merge2Raw.material || '') !== String(merge2.material || '');
+    if (onTiskChange && (changed1 || changed2)) {
+      onTiskChange(merge1, merge2);
+    }
   }, [tiskPodatki]);
 
   // Validacija tisk kalkulacije
@@ -173,22 +268,20 @@ const TiskSekcija: React.FC<TiskSekcijaProps> = ({ disabled = false, zakljucen =
     const steviloPol = parseInt(podatki.steviloPol) || 0;
     const b2Format = podatki.b2Format || false;
     const b1Format = podatki.b1Format || false;
+    const tiskaKooperant = podatki.tiskaKooperant || false;
     
     // Formula za tisk (velja le če ni obkljukana kljukica pri b2 ali b1 format pole)
-    if (!b2Format && !b1Format) {
+    // Po novih pravilih: če je B1/B2 ali kooperant, časa tiska ne računamo.
+    if (!b2Format && !b1Format && !tiskaKooperant) {
       let casTiska = 0;
       if (podatki.barve === '4/0 barvno enostransko (CMYK)') {
-        // CMYK enostransko
-        casTiska = Math.ceil(steviloPol / 3000 * 10) / 10;
+        casTiska = Math.ceil(steviloPol / 2000 * 10) / 10;
       } else if (podatki.barve === '4/4 barvno obojestransko (CMYK)') {
-        // CMYK obojestransko
-        casTiska = Math.ceil(steviloPol / 1500 * 10) / 10;
+        casTiska = Math.ceil(steviloPol / 1200 * 10) / 10;
       } else if (podatki.barve === '1/0 črno belo enostransko (K)') {
-        // Črno-belo enostransko
-        casTiska = Math.ceil(steviloPol / 6000 * 10) / 10;
+        casTiska = Math.ceil(steviloPol / 5000 * 10) / 10;
       } else if (podatki.barve === '1/1 črno belo obojestransko (K)') {
-        // Črno-belo obojestransko
-        casTiska = Math.ceil(steviloPol / 3000 * 10) / 10;
+        casTiska = Math.ceil(steviloPol / 2500 * 10) / 10;
       }
       return casTiska;
     }
@@ -248,6 +341,10 @@ const TiskSekcija: React.FC<TiskSekcijaProps> = ({ disabled = false, zakljucen =
     
     setTisk(prev => {
       const noviTisk = { ...prev, [polje]: vrednost };
+
+      if (polje === 'steviloPol') {
+        setPolUserTouched((p) => ({ ...p, [tiskIndex]: true }));
+      }
       
       // Kliči callback, če obstaja
       if (onTiskChange) {
@@ -261,6 +358,57 @@ const TiskSekcija: React.FC<TiskSekcijaProps> = ({ disabled = false, zakljucen =
       return noviTisk;
     });
   };
+
+  const commitExpr = (tiskIndex: 1 | 2, polje: 'obseg' | 'steviloKosov' | 'steviloPol' | 'kosovNaPoli') => {
+    const cur = tiskIndex === 1 ? tisk1 : tisk2;
+    const raw = String((cur as any)?.[polje] ?? '');
+    if (!/[+\-*/()]/.test(raw)) return;
+    const n = safeEvalExpression(raw);
+    if (n == null) return;
+    const mode = (polje === 'steviloPol') ? 'ceil' : 'round';
+    const v = formatInt(n, mode);
+    if (!v) return;
+    handleTiskChange(tiskIndex, polje as any, v);
+  };
+
+  const maybeAutoPol = (tiskIndex: 1 | 2) => {
+    const cur = tiskIndex === 1 ? tisk1 : tisk2;
+    const mutN = parseInt(String(cur.steviloMutacij || '1'), 10) || 1;
+    if (mutN > 1) return;
+
+    const k = safeEvalExpression(String(cur.steviloKosov || '').trim()) ?? Number(String(cur.steviloKosov || '').replace(',', '.'));
+    const np = safeEvalExpression(String(cur.kosovNaPoli || '').trim()) ?? Number(String(cur.kosovNaPoli || '').replace(',', '.'));
+    if (!Number.isFinite(k) || !Number.isFinite(np) || k <= 0 || np <= 0) return;
+
+    const computed = Math.ceil(k / np);
+    const currentPol = parseInt(String(cur.steviloPol || ''), 10);
+    if (Number.isFinite(currentPol) && currentPol === computed) return;
+
+    const next = String(computed);
+    const shouldFlash = !!polUserTouched[tiskIndex] && String(cur.steviloPol || '').trim().length > 0;
+    const setTisk = tiskIndex === 1 ? setTisk1 : setTisk2;
+    setTisk(prev => {
+      const noviTisk = { ...prev, steviloPol: next };
+      if (onTiskChange) {
+        if (tiskIndex === 1) onTiskChange(noviTisk, tisk2);
+        else onTiskChange(tisk1, noviTisk);
+      }
+      return noviTisk;
+    });
+    if (shouldFlash) {
+      setPolFlash((p) => ({ ...p, [tiskIndex]: true }));
+      window.setTimeout(() => setPolFlash((p) => ({ ...p, [tiskIndex]: false })), 600);
+    }
+  };
+
+  useEffect(() => {
+    maybeAutoPol(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tisk1.steviloKosov, tisk1.kosovNaPoli, tisk1.steviloMutacij]);
+  useEffect(() => {
+    maybeAutoPol(2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tisk2.steviloKosov, tisk2.kosovNaPoli, tisk2.steviloMutacij]);
 
   const handleMutacijeChange = (tiskIndex: 1 | 2, mutacije: Array<{ steviloPol: string }>) => {
     const setTisk = tiskIndex === 1 ? setTisk1 : setTisk2;
@@ -331,45 +479,83 @@ const TiskSekcija: React.FC<TiskSekcijaProps> = ({ disabled = false, zakljucen =
             />
           </div>
 
-          {/* Obseg/mutacije */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Obseg/mutacije
-            </label>
-            <input
-              type="number"
-              value={podatki.steviloMutacij}
-              onChange={(e) => {
-                const vrednost = e.target.value;
-                if (vrednost === '' || (parseInt(vrednost) >= 1 && parseInt(vrednost) <= 10)) {
-                  const steviloMutacij = parseInt(vrednost) || 0;
-                  const noveMutacije = Array.from({ length: steviloMutacij }, () => ({ steviloPol: '' }));
-                  handleTiskChange(tiskIndex, 'steviloMutacij', vrednost);
-                  handleMutacijeChange(tiskIndex, noveMutacije);
-                }
-              }}
-              disabled={disabled}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucenLocal ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
-              placeholder="1-10"
-              min="1"
-              max="10"
-            />
-          </div>
-
-          {/* Število kosov */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Število kosov {jePredmetVnesen && <span className="text-red-500">*</span>}
-            </label>
-            <input
-              type="number"
-              value={podatki.steviloKosov}
-              onChange={(e) => handleTiskChange(tiskIndex, 'steviloKosov', e.target.value)}
-              disabled={disabled}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucenLocal ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
-              placeholder="0"
-              min="0"
-            />
+          {/* Obseg + Mutacije + Število kosov (v eni vrsti) */}
+          <div className="md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Obseg */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Obseg - (število strani)
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={podatki.obseg}
+                  onChange={(e) => handleTiskChange(tiskIndex, 'obseg', e.target.value)}
+                  onBlur={() => commitExpr(tiskIndex, 'obseg')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitExpr(tiskIndex, 'obseg'); (e.currentTarget as HTMLInputElement).blur(); }
+                    if (e.key === 'Tab') commitExpr(tiskIndex, 'obseg');
+                  }}
+                  disabled={disabled}
+                  className={`w-full px-2 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucenLocal ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
+                  placeholder="npr. 8"
+                />
+              </div>
+              {/* Mutacije */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Mutacije
+                </label>
+                <input
+                  type="number"
+                  value={podatki.steviloMutacij}
+                  onChange={(e) => {
+                    const vrednost = e.target.value;
+                    if (vrednost === '' || (parseInt(vrednost) >= 1 && parseInt(vrednost) <= 10)) {
+                      const steviloMutacij = parseInt(vrednost) || 0;
+                      // Ne briši že vpisanih vrednosti: ohrani obstoječe in samo razširi seznam, če je potrebno.
+                      const obstojece = Array.isArray(podatki.mutacije) ? [...podatki.mutacije] : [];
+                      const noveMutacije = [...obstojece];
+                      while (noveMutacije.length < steviloMutacij) {
+                        noveMutacije.push({ steviloPol: '' });
+                      }
+                      handleTiskChange(tiskIndex, 'steviloMutacij', vrednost);
+                      handleMutacijeChange(tiskIndex, noveMutacije);
+                      // Število pol naj sledi vsoti trenutno aktivnih mutacij
+                      const aktivne = noveMutacije.slice(0, Math.max(0, steviloMutacij));
+                      const skupnoPol = aktivne.reduce((sum, m) => sum + (parseInt(m?.steviloPol) || 0), 0);
+                      handleTiskChange(tiskIndex, 'steviloPol', skupnoPol.toString());
+                    }
+                  }}
+                  disabled={disabled}
+                  className={`w-full px-2 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucenLocal ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
+                  placeholder="1-10"
+                  min="1"
+                  max="10"
+                />
+              </div>
+              {/* Število kosov */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Število kosov {jePredmetVnesen && <span className="text-red-500">*</span>}
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={podatki.steviloKosov}
+                  onChange={(e) => handleTiskChange(tiskIndex, 'steviloKosov', e.target.value)}
+                  onBlur={() => commitExpr(tiskIndex, 'steviloKosov')}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitExpr(tiskIndex, 'steviloKosov'); (e.currentTarget as HTMLInputElement).blur(); }
+                    if (e.key === 'Tab') commitExpr(tiskIndex, 'steviloKosov');
+                  }}
+                  disabled={disabled}
+                  className={`w-full px-2 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucenLocal ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
+                  placeholder="0"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Material */}
@@ -444,7 +630,7 @@ const TiskSekcija: React.FC<TiskSekcijaProps> = ({ disabled = false, zakljucen =
           {parseInt(podatki.steviloMutacij) > 1 && (
             <div className="md:col-span-2">
               <div className="grid grid-cols-2 gap-2 p-3 border rounded-md bg-gray-50">
-                {podatki.mutacije.map((mutacija, index) => (
+                {(Array.isArray(podatki.mutacije) ? podatki.mutacije.slice(0, parseInt(podatki.steviloMutacij) || 0) : []).map((mutacija, index) => (
                   <div key={index} className="flex items-center gap-2">
                     <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
                       Mutac{index + 1}/sig{index + 1}:
@@ -453,12 +639,16 @@ const TiskSekcija: React.FC<TiskSekcijaProps> = ({ disabled = false, zakljucen =
                       type="number"
                       value={mutacija.steviloPol}
                       onChange={(e) => {
-                        const noveMutacije = [...podatki.mutacije];
+                        const noveMutacije = Array.isArray(podatki.mutacije) ? [...podatki.mutacije] : [];
+                        while (noveMutacije.length <= index) {
+                          noveMutacije.push({ steviloPol: '' });
+                        }
                         noveMutacije[index].steviloPol = e.target.value;
                         handleMutacijeChange(tiskIndex, noveMutacije);
                         
                         // Izračunaj skupno število pol
-                        const skupnoPol = noveMutacije.reduce((sum, m) => sum + (parseInt(m.steviloPol) || 0), 0);
+                        const activeN = parseInt(podatki.steviloMutacij) || 0;
+                        const skupnoPol = noveMutacije.slice(0, activeN).reduce((sum, m) => sum + (parseInt(m?.steviloPol) || 0), 0);
                         handleTiskChange(tiskIndex, 'steviloPol', skupnoPol.toString());
                       }}
                       disabled={disabled}
@@ -478,15 +668,20 @@ const TiskSekcija: React.FC<TiskSekcijaProps> = ({ disabled = false, zakljucen =
               Število pol {jePredmetVnesen && <span className="text-red-500">*</span>}
             </label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={podatki.steviloPol}
               onChange={(e) => handleTiskChange(tiskIndex, 'steviloPol', e.target.value)}
+              onBlur={() => commitExpr(tiskIndex, 'steviloPol')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); commitExpr(tiskIndex, 'steviloPol'); (e.currentTarget as HTMLInputElement).blur(); }
+                if (e.key === 'Tab') commitExpr(tiskIndex, 'steviloPol');
+              }}
               disabled={disabled}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                podatki.b2Format || podatki.b1Format ? 'bg-orange-50' : ''
+                (polFlash[tiskIndex] ? 'bg-yellow-200' : (podatki.b2Format || podatki.b1Format ? 'bg-orange-50' : ''))
               } ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucenLocal ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
               placeholder="0"
-              min="0"
             />
           </div>
 
@@ -496,13 +691,18 @@ const TiskSekcija: React.FC<TiskSekcijaProps> = ({ disabled = false, zakljucen =
               Število kosov na poli {jePredmetVnesen && <span className="text-red-500">*</span>}
             </label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={podatki.kosovNaPoli}
               onChange={(e) => handleTiskChange(tiskIndex, 'kosovNaPoli', e.target.value)}
+              onBlur={() => commitExpr(tiskIndex, 'kosovNaPoli')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); commitExpr(tiskIndex, 'kosovNaPoli'); (e.currentTarget as HTMLInputElement).blur(); }
+                if (e.key === 'Tab') commitExpr(tiskIndex, 'kosovNaPoli');
+              }}
               disabled={disabled}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucenLocal ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
               placeholder="0"
-              min="0"
             />
           </div>
             <div className="flex gap-4 mt-2">

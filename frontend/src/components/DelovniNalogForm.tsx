@@ -30,7 +30,7 @@ export default function DelovniNalogForm() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    axios.get<Kupec[]>('http://localhost:5000/api/kupec').then(res => {
+    axios.get<Kupec[]>('/api/kupec').then(res => {
       setKupci(res.data);
     });
   }, []);
@@ -50,7 +50,7 @@ export default function DelovniNalogForm() {
     };
 
     try {
-      const res = await axios.post('http://localhost:5000/api/delovni-nalog', body);
+      const res = await axios.post('/api/delovni-nalog', body);
       setRezultat({
         stevilkaNaloga: res.data.stevilkaNaloga,
         datumOdprtja: res.data.datumOdprtja,

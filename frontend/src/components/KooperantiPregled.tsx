@@ -31,6 +31,28 @@ function isSameDay(a: Date, b: Date) {
 	return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
+function formatDatumSI(datum?: string): string {
+	if (!datum) return '';
+	const s = String(datum).trim();
+	const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+	if (iso) {
+		const y = iso[1];
+		const m = String(parseInt(iso[2], 10));
+		const d = String(parseInt(iso[3], 10));
+		return `${d}.${m}.${y}`;
+	}
+	const eu = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})/);
+	if (eu) {
+		const d = String(parseInt(eu[1], 10));
+		const m = String(parseInt(eu[2], 10));
+		const y = eu[3].length === 2 ? `20${eu[3]}` : eu[3];
+		return `${d}.${m}.${y}`;
+	}
+	const tSplit = s.split('T')[0];
+	if (tSplit && /^\d{4}-\d{2}-\d{2}$/.test(tSplit)) return formatDatumSI(tSplit);
+	return s;
+}
+
 const KooperantiPregled: React.FC<KooperantiPregledProps> = ({ vsiNalogi, onOpenNalog }) => {
 	const [now, setNow] = useState<Date>(new Date());
 
@@ -161,7 +183,7 @@ const KooperantiPregled: React.FC<KooperantiPregledProps> = ({ vsiNalogi, onOpen
 										</td>
 										<td className={`px-3 py-2 border-b ${isToday ? 'text-red-800' : ''}`}>{v.imeKooperanta || '-'}</td>
 										<td className={`px-3 py-2 border-b ${isToday ? 'text-red-800' : ''}`}>{v.vrsta || '-'}</td>
-										<td className={`px-3 py-2 border-b ${isToday ? 'text-red-800 font-semibold' : ''}`}>{v.predvidenRok || '-'}</td>
+										<td className={`px-3 py-2 border-b ${isToday ? 'text-red-800 font-semibold' : ''}`}>{formatDatumSI(v.predvidenRok) || '-'}</td>
 										<td className={`px-3 py-2 border-b ${isToday ? 'text-red-800' : ''}`}>{v.cena || '-'}</td>
 									</tr>
 								);

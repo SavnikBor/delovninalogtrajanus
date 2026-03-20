@@ -1,8 +1,9 @@
 {
   "scripts": {
     "build": "tsc",
-    "start": "node dist/app.js",
-    "dev": "ts-node src/app.ts"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test src/cenikImportUtils.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

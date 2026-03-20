@@ -1,0 +1,302 @@
+[
+  {
+    "stevilkaNaloga": 67107,
+    "taskType": "Vezava",
+    "part": 0,
+    "closedAt": "2026-01-17T21:59:51.857Z"
+  },
+  {
+    "stevilkaNaloga": 67107,
+    "taskType": "Topli tisk",
+    "part": 0,
+    "closedAt": "2026-01-18T08:21:17.257Z"
+  },
+  {
+    "stevilkaNaloga": 67107,
+    "taskType": "UV Tisk",
+    "part": 0,
+    "closedAt": "2026-01-18T08:21:21.645Z"
+  },
+  {
+    "stevilkaNaloga": 67094,
+    "taskType": "Tisk",
+    "part": 0,
+    "closedAt": "2026-01-18T10:27:04.211Z"
+  },
+  {
+    "stevilkaNaloga": 67094,
+    "taskType": "UV Lak",
+    "part": 0,
+    "closedAt": "2026-01-18T11:53:17.018Z"
+  },
+  {
+    "stevilkaNaloga": 67105,
+    "taskType": "Lepljenje",
+    "part": 0,
+    "closedAt": "2026-01-18T12:11:05.865Z"
+  },
+  {
+    "stevilkaNaloga": 67105,
+    "taskType": "Tisk",
+    "part": 0,
+    "closedAt": "2026-01-19T13:29:54.214Z"
+  },
+  {
+    "stevilkaNaloga": 67082,
+    "taskType": "Plastifikacija",
+    "part": 0,
+    "closedAt": "2026-01-19T13:34:44.224Z"
+  },
+  {
+    "stevilkaNaloga": 67082,
+    "taskType": "Tisk",
+    "part": 0,
+    "closedAt": "2026-01-19T13:34:44.522Z"
+  },
+  {
+    "stevilkaNaloga": 67084,
+    "taskType": "Tisk",
+    "part": 0,
+    "closedAt": "2026-01-19T13:34:45.052Z"
+  },
+  {
+    "stevilkaNaloga": 67084,
+    "taskType": "Plastifikacija",
+    "part": 0,
+    "closedAt": "2026-01-19T13:34:45.306Z"
+  },
+  {
+    "stevilkaNaloga": 67088,
+    "taskType": "Tisk",
+    "part": 0,
+    "closedAt": "2026-01-19T13:34:45.600Z"
+  },
+  {
+    "stevilkaNaloga": 67090,
+    "taskType": "Tisk",
+    "part": 0,
+    "closedAt": "2026-01-19T13:34:45.934Z"
+  },
+  {
+    "stevilkaNaloga": 67092,
+    "taskType": "Tisk",
+    "part": 0,
+    "closedAt": "2026-01-19T13:34:46.359Z"
+  },
+  {
+    "stevilkaNaloga": 67031,
+    "taskType": "Razrez",
+    "part": 0,
+    "closedAt": "2026-01-19T15:36:41.144Z"
+  },
+  {
+    "stevilkaNaloga": 67026,
+    "taskType": "Izsek/Zasek",
+    "part": 0,
+    "closedAt": "2026-01-19T15:36:41.599Z"
+  },
+  {
+    "stevilkaNaloga": 67026,
+    "taskType": "Plastifikacija",
+    "part": 0,
+    "closedAt": "2026-01-19T15:36:42.261Z"
+  },
+  {
+    "stevilkaNaloga": 67026,
+    "taskType": "Tisk",
+    "part": 0,
+    "closedAt": "2026-01-19T15:36:42.575Z"
+  },
+  {
+    "stevilkaNaloga": 67040,
+    "taskType": "Plastifikacija",
+    "part": 0,
+    "closedAt": "2026-01-19T15:36:43.344Z"
+  },
+  {
+    "stevilkaNaloga": 67051,
+    "taskType": "Razrez",
+    "part": 0,
+    "closedAt": "2026-01-19T15:36:44.164Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Plastifikacija",
+    "part": 0,
+    "closedAt": "2026-01-20T05:53:29.938Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "UV Lak",
+    "part": 0,
+    "closedAt": "2026-01-20T05:53:45.905Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Lepljenje",
+    "part": 0,
+    "closedAt": "2026-01-20T05:57:51.523Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Tisk",
+    "part": 2,
+    "closedAt": "2026-01-20T09:38:11.920Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Plastifikacija",
+    "part": 2,
+    "closedAt": "2026-01-20T09:38:21.306Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "UV Lak",
+    "part": 2,
+    "closedAt": "2026-01-20T09:38:26.678Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Topli tisk",
+    "part": 2,
+    "closedAt": "2026-01-20T09:38:35.202Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Izsek/Zasek",
+    "part": 2,
+    "closedAt": "2026-01-20T09:39:14.060Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Razrez",
+    "part": 2,
+    "closedAt": "2026-01-20T09:39:27.729Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Razrez",
+    "part": 1,
+    "closedAt": "2026-01-20T09:39:37.363Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Biganje",
+    "part": 2,
+    "closedAt": "2026-01-20T18:21:40.017Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Zgibanje",
+    "part": 2,
+    "closedAt": "2026-01-20T18:21:40.535Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Zgibanje",
+    "part": 1,
+    "closedAt": "2026-01-20T18:21:40.943Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Biganje",
+    "part": 1,
+    "closedAt": "2026-01-20T18:21:41.267Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Vrtanje luknje",
+    "part": 1,
+    "closedAt": "2026-01-20T18:21:42.375Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Vrtanje luknje",
+    "part": 2,
+    "closedAt": "2026-01-20T18:21:42.919Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Vezava",
+    "part": 2,
+    "closedAt": "2026-01-20T18:21:43.536Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Vezava",
+    "part": 1,
+    "closedAt": "2026-01-20T18:21:43.992Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Dodatno",
+    "part": 1,
+    "closedAt": "2026-01-20T18:21:45.331Z"
+  },
+  {
+    "stevilkaNaloga": 67111,
+    "taskType": "Dodatno",
+    "part": 2,
+    "closedAt": "2026-01-20T18:21:45.770Z"
+  },
+  {
+    "stevilkaNaloga": 67120,
+    "taskType": "Tisk",
+    "part": 1,
+    "closedAt": "2026-01-23T15:36:54.158Z"
+  },
+  {
+    "stevilkaNaloga": 67084,
+    "taskType": "Tisk",
+    "part": 1,
+    "closedAt": "2026-02-03T13:30:35.746Z"
+  },
+  {
+    "stevilkaNaloga": 67090,
+    "taskType": "Tisk",
+    "part": 1,
+    "closedAt": "2026-02-03T13:40:01.538Z"
+  },
+  {
+    "stevilkaNaloga": 67126,
+    "taskType": "Tisk",
+    "part": 1,
+    "closedAt": "2026-02-03T13:40:04.723Z"
+  },
+  {
+    "stevilkaNaloga": 67129,
+    "taskType": "Lepljenje",
+    "part": 1,
+    "closedAt": "2026-02-03T14:02:50.111Z"
+  },
+  {
+    "stevilkaNaloga": 64907,
+    "taskType": "Plastifikacija",
+    "part": 1,
+    "closedAt": "2026-02-20T20:43:28.795Z"
+  },
+  {
+    "stevilkaNaloga": 67040,
+    "taskType": "Plastifikacija",
+    "part": 1,
+    "closedAt": "2026-02-20T20:44:14.085Z"
+  },
+  {
+    "stevilkaNaloga": 67129,
+    "taskType": "Izsek/Zasek",
+    "part": 1,
+    "closedAt": "2026-02-20T21:13:21.642Z"
+  },
+  {
+    "stevilkaNaloga": 67118,
+    "taskType": "Izsek/Zasek",
+    "part": 1,
+    "closedAt": "2026-02-26T21:19:09.788Z"
+  },
+  {
+    "stevilkaNaloga": 67133,
+    "taskType": "Razrez",
+    "part": 1,
+    "closedAt": "2026-02-27T14:46:45.845Z"
+  }
+]

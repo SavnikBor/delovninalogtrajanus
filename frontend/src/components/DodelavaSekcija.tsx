@@ -69,6 +69,9 @@ interface DodelavaPodatki {
   lepljenjeBlokov: boolean;
   vrtanjeLuknje: boolean;
   velikostLuknje: string;
+  drugo: boolean;
+  drugoNaziv: string;
+  drugoCas: string;
   uvTisk: string;
   uvLak: string;
   topliTisk: string;
@@ -97,6 +100,7 @@ interface DodelavaPodatki {
     vrstaDodelave: string;
   };
   stevilkaOrodja: string;
+  obstojeciKlise: boolean;
 }
 
 interface DodelavaSekcijaProps {
@@ -177,9 +181,9 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
     
     // Razrez
     if (dodelava.razrez) {
-      // Formula za razrez: ROUNDUP((število pol/30)/10;1)
-      const casRazreza = Math.ceil((steviloPol / 30) / 10 * 10) / 10;
-      casDodelav.razrez = casRazreza;
+      // Formula za razrez: (število pol/100)/15
+      const casRazreza = (steviloPol / 100) / 15;
+      casDodelav.razrez = Math.round(casRazreza * 1000) / 1000;
     }
 
     // Izsek/zasek
@@ -195,7 +199,11 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
           casIzseka = Math.ceil(steviloPol / 20 * 10) / 10;
         }
       } else if (dodelava.izsek === 'klasični izsek') {
-        casIzseka = Math.ceil(8 + 0.5 + steviloPol / 1000 * 10) / 10;
+        // Če je vpisana številka orodja, orodje že imamo -> ni 8h za naročilo novega orodja
+        const imaOrodje = !!String(dodelava.stevilkaOrodja || '').trim();
+        casIzseka = imaOrodje
+          ? (Math.ceil((0.5 + steviloPol / 1000) * 10) / 10)
+          : (Math.ceil((8 + 0.5 + steviloPol / 1000) * 10) / 10);
       } else if (dodelava.izsek === 'okroglenje vogalov') {
         casIzseka = Math.ceil((steviloKosov / 30) * 0.03 * 10) / 10;
       }
@@ -204,7 +212,10 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
     
     // Topli tisk, reliefni tisk, globoki tisk
     if (dodelava.topliTisk && dodelava.topliTisk !== 'brez') {
-      const casTopliTiska = Math.ceil(8 + 1 + steviloKosov / 1000 * 10) / 10;
+      const obstojeciKlise = !!(dodelava.obstojeciKlise);
+      const casTopliTiska = obstojeciKlise
+        ? Math.ceil((1 + steviloKosov / 500) * 10) / 10
+        : Math.ceil((8 + 1 + steviloKosov / 500) * 10) / 10;
       casDodelav.topliTisk = casTopliTiska;
     }
     
@@ -255,7 +266,7 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
         casVezave = Math.ceil(steviloKosov / 50 * 10) / 10;
       } else if (dodelava.vezava === 'broširano') {
         casVezave = Math.ceil(steviloKosov / 200 * 10) / 10;
-      } else if (dodelava.vezava === 'šivano') {
+      } else if (dodelava.vezava === 'trda vezava' || dodelava.vezava === 'šivano') {
         casVezave = Math.ceil(steviloKosov / 100 * 10) / 10;
       }
       casDodelav.vezava = casVezave;
@@ -269,8 +280,15 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
     
     // Perforacija
     if (dodelava.perforacija) {
-      const casPerforacije = Math.ceil(steviloKosov / 500 * 10) / 10;
-      casDodelav.perforacija = casPerforacije;
+      // Formula: 0,5 + število pol/1000
+      const casPerforacije = 0.5 + (steviloPol / 1000);
+      casDodelav.perforacija = Math.round(casPerforacije * 1000) / 1000;
+    }
+
+    // Drugo (custom) – uporabnik vnese čas ročno (v urah)
+    if (dodelava.drugo) {
+      const cas = Number(String((dodelava as any).drugoCas || '').replace(',', '.'));
+      if (Number.isFinite(cas) && cas > 0) casDodelav.drugo = cas;
     }
     
     return casDodelav;
@@ -306,6 +324,9 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
     lepljenjeBlokov: false, 
     vrtanjeLuknje: false, 
     velikostLuknje: '', 
+    drugo: false,
+    drugoNaziv: '',
+    drugoCas: '',
     uvTisk: '', 
     uvLak: '', 
     topliTisk: '', 
@@ -318,7 +339,8 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
     kooperant2Podatki: { imeKooperanta: '', predvidenRok: '', znesekDodelave: '', vrstaDodelave: '' }, 
     kooperant3: false, 
     kooperant3Podatki: { imeKooperanta: '', predvidenRok: '', znesekDodelave: '', vrstaDodelave: '' }, 
-    stevilkaOrodja: '' 
+    stevilkaOrodja: '',
+    obstojeciKlise: false
   };
   const podatki1 = useMemo(() => {
     try {
@@ -497,7 +519,7 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
           </div>
 
           {/* Nove dodelave - druga vrstica */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <label className={`flex items-center gap-2 px-2 py-1 rounded ${podatki.biganjeRocnoZgibanje ? 'bg-yellow-50 ring-1 ring-yellow-300 font-semibold text-yellow-900' : ''}`}>
               <input
                 type="checkbox"
@@ -541,10 +563,21 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
               />
               <span className="text-sm">vrtanje luknje</span>
             </label>
+
+            <label className={`flex items-center gap-2 px-2 py-1 rounded ${podatki.drugo ? 'bg-yellow-50 ring-1 ring-yellow-300 font-semibold text-yellow-900' : ''}`}>
+              <input
+                type="checkbox"
+                checked={!!podatki.drugo}
+                onChange={(e) => handleDodelavaChange(dodelavaIndex, 'drugo', e.target.checked)}
+                disabled={disabled}
+                className={`rounded border-gray-300 text-blue-600 focus:ring-blue-500 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucen ? 'bg-red-50 border-red-300' : ''}`}
+              />
+              <span className="text-sm">drugo</span>
+            </label>
           </div>
 
           {/* Dodatna polja za nove dodelave */}
-          {(podatki.lepljenje || podatki.vrtanjeLuknje) && (
+          {(podatki.lepljenje || podatki.vrtanjeLuknje || podatki.drugo) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
               {podatki.lepljenje && (
                 <div className="space-y-2">
@@ -597,6 +630,54 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucen ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
                     placeholder="npr. fi 3 mm"
                   />
+                </div>
+              )}
+
+              {podatki.drugo && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Drugo – opis
+                    </label>
+                    <textarea
+                      rows={1}
+                      value={podatki.drugoNaziv || ''}
+                      onChange={(e) => handleDodelavaChange(dodelavaIndex, 'drugoNaziv', e.target.value)}
+                      disabled={disabled}
+                      onInput={(e) => {
+                        const el = e.currentTarget;
+                        el.style.height = 'auto';
+                        el.style.height = `${el.scrollHeight}px`;
+                      }}
+                      ref={(el) => {
+                        if (!el) return;
+                        try {
+                          el.style.height = 'auto';
+                          el.style.height = `${el.scrollHeight}px`;
+                        } catch {}
+                      }}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucen ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
+                      placeholder="npr. rezkanje, kaširanje..."
+                      style={{ resize: 'vertical', overflow: 'hidden' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Drugo – predviden čas (h)
+                    </label>
+                    <input
+                      type="text"
+                      value={podatki.drugoCas || ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!/^[0-9]*[.,]?[0-9]*$/.test(v)) return;
+                        handleDodelavaChange(dodelavaIndex, 'drugoCas', v);
+                      }}
+                      disabled={disabled}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucen ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
+                      placeholder="npr. 0,5"
+                    />
+                  </div>
                 </div>
               )}
             </div>
@@ -656,6 +737,18 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
                   <option key={opcija} value={opcija}>{opcija}</option>
                 ))}
               </select>
+              {podatki.topliTisk && (
+                <label className="flex items-center gap-2 mt-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={!!podatki.obstojeciKlise}
+                    onChange={(e) => handleDodelavaChange(dodelavaIndex, 'obstojeciKlise', e.target.checked)}
+                    disabled={disabled}
+                    className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                  />
+                  <span>Obstoječi kliše</span>
+                </label>
+              )}
             </div>
 
             {/* Vezava */}
@@ -671,7 +764,7 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
               >
                 <option value="">-- Izberi vezavo --</option>
                 {VEZAVA_OPCIJE.map(opcija => (
-                  <option key={opcija} value={opcija}>{opcija}</option>
+                  <option key={opcija} value={opcija}>{opcija === 'šivano' ? 'trda vezava' : opcija}</option>
                 ))}
               </select>
             </div>
@@ -944,39 +1037,7 @@ const DodelavaSekcija: React.FC<DodelavaSekcijaProps> = ({ disabled = false, zak
             )}
           </div>
 
-          {/* Povzetek izbranih dodelav */}
-          <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Izbrane dodelave:</h4>
-            <div className="text-sm text-gray-600 space-y-1">
-              {podatki.razrez && <div>• Razrez</div>}
-              {podatki.vPolah && <div>• V polah</div>}
-              {podatki.zgibanje && <div>• Zgibanje</div>}
-              {podatki.biganje && <div>• Biganje</div>}
-              {podatki.perforacija && <div>• Perforacija</div>}
-              {podatki.biganjeRocnoZgibanje && <div>• Biganje + ročno zgibanje</div>}
-              {podatki.lepljenje && <div>• Lepljenje dvolepilnega traku {podatki.lepljenjeMesta && `(${podatki.lepljenjeMesta} mesta)`} {podatki.lepljenjeSirina && `- ${podatki.lepljenjeSirina}`}</div>}
-              {podatki.lepljenjeBlokov && <div>• Lepljenje blokov</div>}
-              {podatki.vrtanjeLuknje && <div>• Vrtanje luknje {podatki.velikostLuknje && `(${podatki.velikostLuknje})`}</div>}
-              {podatki.uvTisk && <div>• UV tisk: {podatki.uvTisk}</div>}
-              {podatki.uvLak && <div>• 3D UV lak: {podatki.uvLak}</div>}
-              {podatki.topliTisk && <div>• Topli tisk: {podatki.topliTisk}</div>}
-              {podatki.vezava && <div>• Vezava: {podatki.vezava}</div>}
-              {podatki.izsek && <div>• Izsek/zasek: {podatki.izsek}</div>}
-              {podatki.plastifikacija && <div>• Plastifikacija: {podatki.plastifikacija}</div>}
-              {podatki.kooperant1 && <div>• Kooperant 1: {podatki.kooperant1Podatki?.imeKooperanta || 'Naziv ni vnesen'}</div>}
-              {podatki.kooperant2 && <div>• Kooperant 2: {podatki.kooperant2Podatki?.imeKooperanta || 'Naziv ni vnesen'}</div>}
-              {podatki.kooperant3 && <div>• Kooperant 3: {podatki.kooperant3Podatki?.imeKooperanta || 'Naziv ni vnesen'}</div>}
-              {podatki.izsek === 'klasični izsek' && podatki.stevilkaOrodja && <div>• Številka orodja: {podatki.stevilkaOrodja}</div>}
-              {!podatki.razrez && !podatki.vPolah && !podatki.zgibanje && !podatki.biganje && 
-               !podatki.perforacija && !podatki.biganjeRocnoZgibanje && !podatki.lepljenje && !podatki.lepljenjeBlokov &&
-               !podatki.vrtanjeLuknje && !podatki.uvTisk && !podatki.uvLak && !podatki.topliTisk && !podatki.vezava && 
-               !podatki.izsek && !podatki.plastifikacija && !podatki.kooperant1 && !podatki.kooperant2 && !podatki.kooperant3 && (
-                <div className="text-gray-400 italic">Ni izbranih dodelav</div>
-              )}
-            </div>
-            
-
-          </div>
+          {/* Povzetek izbranih dodelav (umaknjeno za bolj pregleden delovni nalog) */}
         </div>
       </div>
     );

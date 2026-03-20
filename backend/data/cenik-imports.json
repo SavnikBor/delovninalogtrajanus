@@ -1,0 +1,1999 @@
+[
+  {
+    "importId": "cenik-1772203843438-7rbs96",
+    "receivedAt": "2026-02-27T14:50:43.438Z",
+    "source": "ceniki",
+    "payload": {
+      "razbraniPodatki": {
+        "stevilkaNaloga": null,
+        "datumOdprtja": "2026-02-27T14:50",
+        "status": "v_delu",
+        "dobavljeno": false,
+        "prioritetnaOcena": null,
+        "emailPoslan": false,
+        "zakljucekEmailPoslan": false,
+        "kupec": {
+          "KupecID": null,
+          "Naziv": null,
+          "Naslov": null,
+          "Posta": null,
+          "Kraj": null,
+          "Telefon": null,
+          "Fax": null,
+          "IDzaDDV": null,
+          "email": null,
+          "narocilnica": null,
+          "rocniVnos": false,
+          "posljiEmail": null
+        },
+        "kontakt": {
+          "kontaktnaOseba": null,
+          "email": null,
+          "telefon": null
+        },
+        "rokIzdelave": "2026-03-03",
+        "rokIzdelaveUra": "11:12",
+        "datumNarocila": "2026-02-27",
+        "tisk": {
+          "tisk1": {
+            "predmet": "Plakati",
+            "format": "297x420 mm",
+            "obseg": "1",
+            "steviloKosov": "50",
+            "material": "mat premazni 200 g/m²",
+            "barve": "4/0 barvno enostransko (CMYK)",
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": false,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": false,
+            "b1Format": false,
+            "steviloMutacij": "1",
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          },
+          "tisk2": {
+            "predmet": null,
+            "format": null,
+            "obseg": null,
+            "steviloKosov": null,
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": null,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": null,
+            "b1Format": null,
+            "steviloMutacij": null,
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          }
+        },
+        "dodelava": {
+          "dodelava1": {
+            "razrez": true,
+            "vPolah": null,
+            "zgibanje": null,
+            "biganje": null,
+            "perforacija": null,
+            "biganjeRocnoZgibanje": null,
+            "lepljenje": null,
+            "lepljenjeMesta": null,
+            "lepljenjeSirina": null,
+            "lepljenjeBlokov": null,
+            "vrtanjeLuknje": null,
+            "velikostLuknje": null,
+            "uvTisk": "4/0 barvno enostransko (CMYK)",
+            "uvLak": null,
+            "topliTisk": null,
+            "vezava": null,
+            "izsek": null,
+            "plastifikacija": null,
+            "kooperant1": false,
+            "kooperant1Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant2": false,
+            "kooperant2Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant3": false,
+            "kooperant3Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "stevilkaOrodja": null
+          },
+          "dodelava2": {}
+        },
+        "stroski": {
+          "stroski1": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": "45,65",
+            "skupaj": null,
+            "skupajZDDV": null
+          },
+          "stroski2": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": null,
+            "skupaj": null,
+            "skupajZDDV": null
+          }
+        },
+        "posiljanje": {
+          "posiljanjePoPosti": true,
+          "naziv": null,
+          "naslov": null,
+          "kraj": null,
+          "postnaStevilka": null,
+          "osebnoPrevzem": false,
+          "dostavaNaLokacijo": false
+        },
+        "komentar": {
+          "komentar": ""
+        },
+        "_cenikMeta": {
+          "productId": "custom_25022026_1940",
+          "productName": "Plakati",
+          "inputs": {
+            "INPUT_orientacija_plakata": "1",
+            "INPUT_FORMAT_plakata": "1",
+            "INPUT_dodatno_sirina_plakata": "",
+            "INPUT_dodatno_visina_plakata": "",
+            "INPUT_Izbira_papirja_plakati": "14",
+            "INPUT_plakati_st_kosov_koncno": 50,
+            "INPUT_plakat_MUTACIJE__mutations_count": 1,
+            "INPUT_plakat_MUTACIJE": 1
+          },
+          "result": {
+            "REZ_plakat_7": 72.8406,
+            "VMES_cena_plakat_B1": 186.165941,
+            "REZ_plakat_8_TR": 77.49,
+            "REZ_narejeno_cez_normalno_plakat": 6,
+            "REZ_plakat_2_TR": 45.65,
+            "REZ_narejeno_cez_express_plakat": 1,
+            "REZ_OPOMBA": null,
+            "REZ_plakat_3": 54.779999999999994,
+            "REZ_skup_masa_plakati": 0.636174,
+            "REZ_plakat_zacetna_kolicina_2": 100,
+            "REZ_plakat_4_TR": 58.96619999999999,
+            "REZ_postnina_tujina_plakati": 25,
+            "REZ_plakat_4": 58.96619999999999,
+            "REZ_plakat_5": 62.73,
+            "REZ_plakat_zacetna_kolicina": 50,
+            "VMES_cena_plakat_B2": 178.7989125,
+            "REZ_postnina_SLO_plakati": 5.3,
+            "VMES_cena_tiska_UV_plakati": 108.64,
+            "REZ_plakat_6": 75.276,
+            "REZ_plakat_6_TR": 75.276,
+            "REZ_plakat_9_TR": 92.98799999999999,
+            "REZ_plakat_7_TR": 72.8406,
+            "REZ_narejeno_cez_hitro_plakat": 3,
+            "REZ_plakat_9": 92.98799999999999,
+            "REZ_plakat_3_TR": 54.779999999999994,
+            "REZ_plakat_1": 42.910999999999994,
+            "REZ_plakat_kolicina_3": 150,
+            "REZ_plakat_2": 45.65,
+            "REZ_plakat_5_TR": 62.73,
+            "REZ_plakat_1_TR": 42.910999999999994,
+            "REZ_plakat_8": 77.49
+          },
+          "madeInHours": 20.2
+        }
+      }
+    },
+    "status": "confirmed",
+    "warnings": [],
+    "confirmedAt": "2026-02-27T14:51:37.904Z",
+    "rejectedAt": null
+  },
+  {
+    "importId": "cenik-1772203782465-16t27z",
+    "receivedAt": "2026-02-27T14:49:42.465Z",
+    "source": "ceniki",
+    "payload": {
+      "razbraniPodatki": {
+        "stevilkaNaloga": null,
+        "datumOdprtja": "2026-02-27T14:49",
+        "status": "v_delu",
+        "dobavljeno": false,
+        "prioritetnaOcena": null,
+        "emailPoslan": false,
+        "zakljucekEmailPoslan": false,
+        "kupec": {
+          "KupecID": null,
+          "Naziv": null,
+          "Naslov": null,
+          "Posta": null,
+          "Kraj": null,
+          "Telefon": null,
+          "Fax": null,
+          "IDzaDDV": null,
+          "email": null,
+          "narocilnica": null,
+          "rocniVnos": false,
+          "posljiEmail": null
+        },
+        "kontakt": {
+          "kontaktnaOseba": null,
+          "email": null,
+          "telefon": null
+        },
+        "rokIzdelave": "2026-03-02",
+        "rokIzdelaveUra": "13:23",
+        "datumNarocila": "2026-02-27",
+        "tisk": {
+          "tisk1": {
+            "predmet": "Nalepke",
+            "format": "50x50 mm",
+            "obseg": "1",
+            "steviloKosov": "5000",
+            "material": "papirnata mat premazna nalepka",
+            "barve": "4/0 barvno enostransko (CMYK)",
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": false,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": false,
+            "b1Format": false,
+            "steviloMutacij": "1",
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          },
+          "tisk2": {
+            "predmet": null,
+            "format": null,
+            "obseg": null,
+            "steviloKosov": null,
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": null,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": null,
+            "b1Format": null,
+            "steviloMutacij": null,
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          }
+        },
+        "dodelava": {
+          "dodelava1": {
+            "razrez": null,
+            "vPolah": null,
+            "zgibanje": null,
+            "biganje": null,
+            "perforacija": null,
+            "biganjeRocnoZgibanje": null,
+            "lepljenje": null,
+            "lepljenjeMesta": null,
+            "lepljenjeSirina": null,
+            "lepljenjeBlokov": null,
+            "vrtanjeLuknje": null,
+            "velikostLuknje": null,
+            "uvTisk": null,
+            "uvLak": null,
+            "topliTisk": null,
+            "vezava": null,
+            "izsek": "digitalni zasek",
+            "plastifikacija": null,
+            "kooperant1": false,
+            "kooperant1Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant2": false,
+            "kooperant2Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant3": false,
+            "kooperant3Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "stevilkaOrodja": null
+          },
+          "dodelava2": {}
+        },
+        "stroski": {
+          "stroski1": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": "244,74",
+            "skupaj": null,
+            "skupajZDDV": null
+          },
+          "stroski2": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": null,
+            "skupaj": null,
+            "skupajZDDV": null
+          }
+        },
+        "posiljanje": {
+          "posiljanjePoPosti": true,
+          "naziv": null,
+          "naslov": null,
+          "kraj": null,
+          "postnaStevilka": null,
+          "osebnoPrevzem": false,
+          "dostavaNaLokacijo": false
+        },
+        "komentar": {
+          "komentar": ""
+        },
+        "_cenikMeta": {
+          "productId": "custom_10022026_2252",
+          "productName": "Nalepke",
+          "inputs": {
+            "INPUT_nalepka_oblika": "1",
+            "INPUT_nalepka_pravokotna_dolzina": 50,
+            "INPUT_nalepka_pravokotna_sirina": 50,
+            "INPUT_nalepka_okrogla_premer": "",
+            "INPUT_nalepka_poljubna_dolzina": "",
+            "INPUT_nalepka_poljubna_sirina": "",
+            "INPUT_nalepka_material": "2",
+            "INPUT_nalepka_TISK": "1",
+            "INPUT_nalepka_plastifikacija": "",
+            "INPUT_nalepka_3D_UV": "",
+            "INPUT_nalepka_IZSEK_ZASEK": "2",
+            "INPUT_nalepka_st_kosov_koncno": 5000,
+            "INPUT_nalepka_MUTACIJE__mutations_count": 1,
+            "INPUT_nalepka_MUTACIJE": 1
+          },
+          "result": {
+            "REZ_datum_express": "03.03.2026 torek 08:00",
+            "REZ_nalepka_3_TR": 244.73999999999998,
+            "REZ_skup_masa_nalepke": 4.5625,
+            "REZ_nalepka_8": 361.79210000000006,
+            "REZ_nalepka_8_TR": 361.79210000000006,
+            "REZ_nalepka_4_TR": 282.5,
+            "REZ_nalepka_zacetna_kolicina_2": 7500,
+            "REZ_nalepka_9": 429.85200000000003,
+            "VMES_st_kos_max_poljubna_oblika": 60,
+            "REZ_nalepka_1_TR": 203.95,
+            "REZ_OPOMBA": null,
+            "REZ_nalepka_7": 358.21000000000004,
+            "VMES_st_kos_max_pravokotna_oblika": 40,
+            "REZ_narejeno_cez_normalno": 26,
+            "REZ_nalepka_6": 339,
+            "VMES_st_pol_pravokotna_oblika": 125,
+            "REZ_nalepka_kolicina_3": 10000,
+            "REZ_postnina_tujina_nalepke": 25,
+            "REZ_narejeno_cez_hitra": 18,
+            "REZ_nalepka_7_TR": 358.21000000000004,
+            "REZ_nalepka_3": 244.73999999999998,
+            "REZ_nalepka_zacetna_kolicina": 5000,
+            "REZ_nalepka_2_TR": 224.345,
+            "VMES_st_kos_okrogla_oblika": 40,
+            "REZ_hitro_normalno": "04.03.2026 sreda 09:00",
+            "REZ_narejeno_cez_express": 9,
+            "VMES_st_pol_okrogla_oblika": 105,
+            "REZ_nalepka_5_TR": 310.75,
+            "REZ_nalepka_4": 282.5,
+            "VMES_st_kos_zamaknjeno_okrogla_oblika": 48,
+            "REZ_nalepka_1": 203.95,
+            "REZ_nalepka_6_TR": 339,
+            "REZ_datum_normalno": "05.03.2026 četrtek 09:00",
+            "REZ_postnina_SLO_nalepke": 0,
+            "REZ_nalepka_5": 310.75,
+            "REZ_nalepka_9_TR": 429.85200000000003,
+            "VMES_st_pol_poljubna_oblika": 84,
+            "REZ_nalepka_2": 224.345
+          },
+          "madeInHours": 14.3856
+        }
+      }
+    },
+    "status": "confirmed",
+    "warnings": [],
+    "confirmedAt": "2026-02-27T14:51:37.906Z",
+    "rejectedAt": null
+  },
+  {
+    "importId": "cenik-1772137155670-st1tqs",
+    "receivedAt": "2026-02-26T20:19:15.670Z",
+    "source": "ceniki",
+    "payload": {
+      "razbraniPodatki": {
+        "stevilkaNaloga": null,
+        "datumOdprtja": "2026-02-26T20:19",
+        "status": "v_delu",
+        "dobavljeno": false,
+        "prioritetnaOcena": null,
+        "emailPoslan": false,
+        "zakljucekEmailPoslan": false,
+        "kupec": {
+          "KupecID": null,
+          "Naziv": null,
+          "Naslov": null,
+          "Posta": null,
+          "Kraj": null,
+          "Telefon": null,
+          "Fax": null,
+          "IDzaDDV": null,
+          "email": null,
+          "narocilnica": null,
+          "rocniVnos": false,
+          "posljiEmail": null
+        },
+        "kontakt": {
+          "kontaktnaOseba": null,
+          "email": null,
+          "telefon": null
+        },
+        "rokIzdelave": "2026-02-26",
+        "rokIzdelaveUra": "14:14",
+        "datumNarocila": "2026-02-26",
+        "tisk": {
+          "tisk1": {
+            "predmet": "Plakati",
+            "format": null,
+            "obseg": "1",
+            "steviloKosov": "50",
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": false,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": false,
+            "b1Format": false,
+            "steviloMutacij": "1",
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          },
+          "tisk2": {
+            "predmet": null,
+            "format": null,
+            "obseg": null,
+            "steviloKosov": null,
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": null,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": null,
+            "b1Format": null,
+            "steviloMutacij": null,
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          }
+        },
+        "dodelava": {
+          "dodelava1": {
+            "razrez": null,
+            "vPolah": null,
+            "zgibanje": null,
+            "biganje": null,
+            "perforacija": null,
+            "biganjeRocnoZgibanje": null,
+            "lepljenje": null,
+            "lepljenjeMesta": null,
+            "lepljenjeSirina": null,
+            "lepljenjeBlokov": null,
+            "vrtanjeLuknje": null,
+            "velikostLuknje": null,
+            "uvTisk": null,
+            "uvLak": null,
+            "topliTisk": null,
+            "vezava": null,
+            "izsek": null,
+            "plastifikacija": null,
+            "kooperant1": false,
+            "kooperant1Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant2": false,
+            "kooperant2Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant3": false,
+            "kooperant3Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "stevilkaOrodja": null
+          },
+          "dodelava2": {}
+        },
+        "stroski": {
+          "stroski1": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": "54,78",
+            "skupaj": null,
+            "skupajZDDV": null
+          },
+          "stroski2": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": null,
+            "skupaj": null,
+            "skupajZDDV": null
+          }
+        },
+        "posiljanje": {
+          "posiljanjePoPosti": true,
+          "naziv": null,
+          "naslov": null,
+          "kraj": null,
+          "postnaStevilka": null,
+          "osebnoPrevzem": false,
+          "dostavaNaLokacijo": false
+        },
+        "komentar": {
+          "komentar": ""
+        },
+        "_cenikMeta": {
+          "productId": "custom_25022026_1940",
+          "productName": "Plakati",
+          "inputs": {
+            "INPUT_orientacija_plakata": "1",
+            "INPUT_FORMAT_plakata": "1",
+            "INPUT_dodatno_sirina_plakata": "",
+            "INPUT_dodatno_visina_plakata": "",
+            "INPUT_Izbira_papirja_plakati": "12",
+            "INPUT_plakati_st_kosov_koncno": 50,
+            "INPUT_plakat_MUTACIJE__mutations_count": 1,
+            "INPUT_plakat_MUTACIJE": 1
+          },
+          "result": {
+            "REZ_plakat_7": 72.8406,
+            "VMES_cena_plakat_B1": 186.165941,
+            "REZ_plakat_8_TR": 77.49,
+            "REZ_narejeno_cez_normalno_plakat": 6,
+            "REZ_plakat_2_TR": 45.65,
+            "REZ_narejeno_cez_express_plakat": 1,
+            "REZ_OPOMBA": null,
+            "REZ_plakat_3": 54.779999999999994,
+            "REZ_skup_masa_plakati": 0.636174,
+            "REZ_plakat_zacetna_kolicina_2": 100,
+            "REZ_plakat_4_TR": 58.96619999999999,
+            "REZ_postnina_tujina_plakati": 25,
+            "REZ_plakat_4": 58.96619999999999,
+            "REZ_plakat_5": 62.73,
+            "REZ_plakat_zacetna_kolicina": 50,
+            "VMES_cena_plakat_B2": 178.7989125,
+            "REZ_postnina_SLO_plakati": 5.3,
+            "VMES_cena_tiska_UV_plakati": 108.64,
+            "REZ_plakat_6": 75.276,
+            "REZ_plakat_6_TR": 75.276,
+            "REZ_plakat_9_TR": 92.98799999999999,
+            "REZ_plakat_7_TR": 72.8406,
+            "REZ_narejeno_cez_hitro_plakat": 3,
+            "REZ_plakat_9": 92.98799999999999,
+            "REZ_plakat_3_TR": 54.779999999999994,
+            "REZ_plakat_1": 42.910999999999994,
+            "REZ_plakat_kolicina_3": 150,
+            "REZ_plakat_2": 45.65,
+            "REZ_plakat_5_TR": 62.73,
+            "REZ_plakat_1_TR": 42.910999999999994,
+            "REZ_plakat_8": 77.49
+          },
+          "madeInHours": 7.2372000000000005
+        }
+      }
+    },
+    "status": "confirmed",
+    "warnings": [],
+    "confirmedAt": "2026-02-26T20:19:36.921Z",
+    "rejectedAt": null
+  },
+  {
+    "importId": "cenik-1772136448704-km9cus",
+    "receivedAt": "2026-02-26T20:07:28.704Z",
+    "source": "ceniki",
+    "payload": {
+      "razbraniPodatki": {
+        "stevilkaNaloga": null,
+        "datumOdprtja": "2026-02-26T20:07",
+        "status": "v_delu",
+        "dobavljeno": false,
+        "prioritetnaOcena": null,
+        "emailPoslan": false,
+        "zakljucekEmailPoslan": false,
+        "kupec": {
+          "KupecID": null,
+          "Naziv": null,
+          "Naslov": null,
+          "Posta": null,
+          "Kraj": null,
+          "Telefon": null,
+          "Fax": null,
+          "IDzaDDV": null,
+          "email": null,
+          "narocilnica": null,
+          "rocniVnos": false,
+          "posljiEmail": null
+        },
+        "kontakt": {
+          "kontaktnaOseba": null,
+          "email": null,
+          "telefon": null
+        },
+        "rokIzdelave": "2026-03-10",
+        "rokIzdelaveUra": "11:44",
+        "datumNarocila": "2026-02-26",
+        "tisk": {
+          "tisk1": {
+            "predmet": "Plakati",
+            "format": null,
+            "obseg": "1",
+            "steviloKosov": "50",
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": false,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": false,
+            "b1Format": false,
+            "steviloMutacij": "1",
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          },
+          "tisk2": {
+            "predmet": null,
+            "format": null,
+            "obseg": null,
+            "steviloKosov": null,
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": null,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": null,
+            "b1Format": null,
+            "steviloMutacij": null,
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          }
+        },
+        "dodelava": {
+          "dodelava1": {
+            "razrez": null,
+            "vPolah": null,
+            "zgibanje": null,
+            "biganje": null,
+            "perforacija": null,
+            "biganjeRocnoZgibanje": null,
+            "lepljenje": null,
+            "lepljenjeMesta": null,
+            "lepljenjeSirina": null,
+            "lepljenjeBlokov": null,
+            "vrtanjeLuknje": null,
+            "velikostLuknje": null,
+            "uvTisk": null,
+            "uvLak": null,
+            "topliTisk": null,
+            "vezava": null,
+            "izsek": null,
+            "plastifikacija": null,
+            "kooperant1": false,
+            "kooperant1Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant2": false,
+            "kooperant2Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant3": false,
+            "kooperant3Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "stevilkaOrodja": null
+          },
+          "dodelava2": {}
+        },
+        "stroski": {
+          "stroski1": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": "170,45",
+            "skupaj": null,
+            "skupajZDDV": null
+          },
+          "stroski2": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": null,
+            "skupaj": null,
+            "skupajZDDV": null
+          }
+        },
+        "posiljanje": {
+          "posiljanjePoPosti": true,
+          "naziv": null,
+          "naslov": null,
+          "kraj": null,
+          "postnaStevilka": null,
+          "osebnoPrevzem": false,
+          "dostavaNaLokacijo": false
+        },
+        "komentar": {
+          "komentar": ""
+        },
+        "_cenikMeta": {
+          "productId": "custom_25022026_1940",
+          "productName": "Plakati",
+          "inputs": {
+            "INPUT_orientacija_plakata": "1",
+            "INPUT_FORMAT_plakata": "2",
+            "INPUT_dodatno_sirina_plakata": "",
+            "INPUT_dodatno_visina_plakata": "",
+            "INPUT_plakati_st_kosov_koncno": 50,
+            "INPUT_plakat_MUTACIJE__mutations_count": 1,
+            "INPUT_plakat_MUTACIJE": 1
+          },
+          "result": {
+            "REZ_plakat_7": 0,
+            "VMES_cena_plakat_B1": 188.59782499999997,
+            "REZ_plakat_8_TR": 198.73067500000002,
+            "REZ_narejeno_cez_normalno_plakat": 48,
+            "REZ_plakat_2_TR": 181.332125,
+            "REZ_narejeno_cez_express_plakat": 16,
+            "REZ_OPOMBA": null,
+            "REZ_plakat_3": 217.59855,
+            "REZ_skup_masa_plakati": 1.272348,
+            "REZ_plakat_zacetna_kolicina_2": 100,
+            "REZ_plakat_4_TR": 175.21463699999998,
+            "REZ_postnina_tujina_plakati": 25,
+            "REZ_plakat_4": 175.21463699999998,
+            "REZ_plakat_5": 186.39855,
+            "REZ_plakat_zacetna_kolicina": 50,
+            "VMES_cena_plakat_B2": 181.332125,
+            "REZ_postnina_SLO_plakati": 0,
+            "VMES_cena_tiska_UV_plakati": 195.07,
+            "REZ_plakat_6": 223.67826,
+            "REZ_plakat_6_TR": 223.67826,
+            "REZ_plakat_9_TR": 238.47681,
+            "REZ_plakat_7_TR": 186.8068345,
+            "REZ_narejeno_cez_hitro_plakat": 32,
+            "REZ_plakat_9": 0,
+            "REZ_plakat_3_TR": 217.59855,
+            "REZ_plakat_1": 170.45219749999998,
+            "REZ_plakat_kolicina_3": 150,
+            "REZ_plakat_2": 181.332125,
+            "REZ_plakat_5_TR": 186.39855,
+            "REZ_plakat_1_TR": 170.45219749999998,
+            "REZ_plakat_8": 0
+          },
+          "madeInHours": 68.73333333333333
+        }
+      }
+    },
+    "status": "confirmed",
+    "warnings": [],
+    "confirmedAt": "2026-02-26T20:07:44.935Z",
+    "rejectedAt": null
+  },
+  {
+    "importId": "cenik-1771969767680-zy072l",
+    "receivedAt": "2026-02-24T21:49:27.680Z",
+    "source": "ceniki",
+    "payload": {
+      "razbraniPodatki": {
+        "stevilkaNaloga": null,
+        "datumOdprtja": "2026-02-24T21:49",
+        "status": "v_delu",
+        "dobavljeno": false,
+        "prioritetnaOcena": null,
+        "emailPoslan": false,
+        "zakljucekEmailPoslan": false,
+        "kupec": {
+          "KupecID": null,
+          "Naziv": null,
+          "Naslov": null,
+          "Posta": null,
+          "Kraj": null,
+          "Telefon": null,
+          "Fax": null,
+          "IDzaDDV": null,
+          "email": null,
+          "narocilnica": null,
+          "rocniVnos": false,
+          "posljiEmail": null
+        },
+        "kontakt": {
+          "kontaktnaOseba": null,
+          "email": null,
+          "telefon": null
+        },
+        "rokIzdelave": "2026-02-27",
+        "rokIzdelaveUra": "07:49",
+        "datumNarocila": "2026-02-24",
+        "tisk": {
+          "tisk1": {
+            "predmet": "Nalepke",
+            "format": null,
+            "obseg": "1",
+            "steviloKosov": "240",
+            "material": "papirnata Woodstock bettula nepremazna nalepka",
+            "barve": "1/0 črno belo enostransko (K)",
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": false,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": false,
+            "b1Format": false,
+            "steviloMutacij": "3",
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          },
+          "tisk2": {
+            "predmet": null,
+            "format": null,
+            "obseg": null,
+            "steviloKosov": null,
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": null,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": null,
+            "b1Format": null,
+            "steviloMutacij": null,
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          }
+        },
+        "dodelava": {
+          "dodelava1": {
+            "razrez": null,
+            "vPolah": null,
+            "zgibanje": null,
+            "biganje": null,
+            "perforacija": null,
+            "biganjeRocnoZgibanje": null,
+            "lepljenje": null,
+            "lepljenjeMesta": null,
+            "lepljenjeSirina": null,
+            "lepljenjeBlokov": null,
+            "vrtanjeLuknje": null,
+            "velikostLuknje": null,
+            "uvTisk": null,
+            "uvLak": "1/0 parcialno",
+            "topliTisk": null,
+            "vezava": null,
+            "izsek": "digitalni zasek",
+            "plastifikacija": "1/0 anti scratch",
+            "kooperant1": false,
+            "kooperant1Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant2": false,
+            "kooperant2Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant3": false,
+            "kooperant3Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "stevilkaOrodja": null
+          },
+          "dodelava2": {}
+        },
+        "stroski": {
+          "stroski1": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": "106,19",
+            "skupaj": null,
+            "skupajZDDV": null
+          },
+          "stroski2": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": null,
+            "skupaj": null,
+            "skupajZDDV": null
+          }
+        },
+        "posiljanje": {
+          "posiljanjePoPosti": true,
+          "naziv": null,
+          "naslov": null,
+          "kraj": null,
+          "postnaStevilka": null,
+          "osebnoPrevzem": false,
+          "dostavaNaLokacijo": false
+        },
+        "komentar": {
+          "komentar": ""
+        },
+        "_cenikMeta": {
+          "productId": "custom_10022026_2252",
+          "productName": "Nalepke",
+          "inputs": {
+            "INPUT_nalepka_oblika": "3",
+            "INPUT_nalepka_pravokotna_dolzina": "",
+            "INPUT_nalepka_pravokotna_sirina": "",
+            "INPUT_nalepka_okrogla_premer": "",
+            "INPUT_nalepka_poljubna_dolzina": 90,
+            "INPUT_nalepka_poljubna_sirina": 90,
+            "INPUT_nalepka_material": "6",
+            "INPUT_nalepka_TISK": "2",
+            "INPUT_nalepka_plastifikacija": "3",
+            "INPUT_nalepka_3D_UV": "2",
+            "INPUT_nalepka_IZSEK_ZASEK": "2",
+            "INPUT_nalepka_st_kosov_koncno": 240,
+            "INPUT_nalepka_MUTACIJE__mutations_count": 3,
+            "INPUT_nalepka_MUTACIJE": 3,
+            "INPUT_nalepka_MUTACIJE_mut_1": 80,
+            "INPUT_nalepka_MUTACIJE_mut_2": 80,
+            "INPUT_nalepka_MUTACIJE_mut_3": 80
+          },
+          "result": {
+            "REZ_datum_express": "25.02.2026 sreda 09:00",
+            "REZ_nalepka_3_TR": 115.848,
+            "REZ_skup_masa_nalepke": 0.594,
+            "REZ_nalepka_8": 136.12779999999998,
+            "REZ_nalepka_8_TR": 136.12779999999998,
+            "REZ_nalepka_4_TR": 120.87,
+            "REZ_nalepka_zacetna_kolicina_2": 400,
+            "REZ_nalepka_9": 161.73599999999996,
+            "VMES_st_kos_max_poljubna_oblika": 12,
+            "REZ_nalepka_1_TR": 96.54,
+            "REZ_OPOMBA": null,
+            "REZ_nalepka_7": 134.77999999999997,
+            "VMES_st_kos_max_pravokotna_oblika": 24,
+            "REZ_narejeno_cez_normalno": 5,
+            "REZ_nalepka_6": 145.044,
+            "VMES_st_pol_pravokotna_oblika": 10,
+            "REZ_nalepka_kolicina_3": 500,
+            "REZ_postnina_tujina_nalepke": 25,
+            "REZ_narejeno_cez_hitra": 3,
+            "REZ_nalepka_7_TR": 134.77999999999997,
+            "REZ_nalepka_3": 115.848,
+            "REZ_nalepka_zacetna_kolicina": 240,
+            "REZ_nalepka_2_TR": 106.19400000000002,
+            "VMES_st_kos_okrogla_oblika": 40,
+            "REZ_hitro_normalno": "25.02.2026 sreda 10:00",
+            "REZ_narejeno_cez_express": 2,
+            "VMES_st_pol_okrogla_oblika": 5,
+            "REZ_nalepka_5_TR": 132.95700000000002,
+            "REZ_nalepka_4": 120.87,
+            "VMES_st_kos_zamaknjeno_okrogla_oblika": 48,
+            "REZ_nalepka_1": 96.54,
+            "REZ_nalepka_6_TR": 145.044,
+            "REZ_datum_normalno": "25.02.2026 sreda 12:00",
+            "REZ_postnina_SLO_nalepke": 0,
+            "REZ_nalepka_5": 132.95700000000002,
+            "REZ_nalepka_9_TR": 161.73599999999996,
+            "VMES_st_pol_poljubna_oblika": 20,
+            "REZ_nalepka_2": 106.19400000000002
+          },
+          "madeInHours": 24.825000000000003
+        }
+      }
+    },
+    "status": "confirmed",
+    "warnings": [],
+    "confirmedAt": "2026-02-24T21:49:39.943Z",
+    "rejectedAt": null
+  },
+  {
+    "importId": "cenik-1771969319823-74napx",
+    "receivedAt": "2026-02-24T21:41:59.823Z",
+    "source": "ceniki",
+    "payload": {
+      "razbraniPodatki": {
+        "stevilkaNaloga": null,
+        "datumOdprtja": "2026-02-24T21:41",
+        "status": "v_delu",
+        "dobavljeno": false,
+        "prioritetnaOcena": null,
+        "emailPoslan": false,
+        "zakljucekEmailPoslan": false,
+        "kupec": {
+          "KupecID": null,
+          "Naziv": null,
+          "Naslov": null,
+          "Posta": null,
+          "Kraj": null,
+          "Telefon": null,
+          "Fax": null,
+          "IDzaDDV": null,
+          "email": null,
+          "narocilnica": null,
+          "rocniVnos": false,
+          "posljiEmail": null
+        },
+        "kontakt": {
+          "kontaktnaOseba": null,
+          "email": null,
+          "telefon": null
+        },
+        "rokIzdelave": "2026-02-25",
+        "rokIzdelaveUra": "09:41",
+        "datumNarocila": "2026-02-24",
+        "tisk": {
+          "tisk1": {
+            "predmet": "Nalepke",
+            "format": "ø 45 mm",
+            "obseg": "1",
+            "steviloKosov": "1600",
+            "material": "papirnata mat premazna nalepka",
+            "barve": "4/0 barvno enostransko (CMYK)",
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": false,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": false,
+            "b1Format": false,
+            "steviloMutacij": "1",
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          },
+          "tisk2": {
+            "predmet": null,
+            "format": null,
+            "obseg": null,
+            "steviloKosov": null,
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": null,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": null,
+            "b1Format": null,
+            "steviloMutacij": null,
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          }
+        },
+        "dodelava": {
+          "dodelava1": {
+            "razrez": true,
+            "vPolah": null,
+            "zgibanje": null,
+            "biganje": null,
+            "perforacija": null,
+            "biganjeRocnoZgibanje": null,
+            "lepljenje": null,
+            "lepljenjeMesta": null,
+            "lepljenjeSirina": null,
+            "lepljenjeBlokov": null,
+            "vrtanjeLuknje": null,
+            "velikostLuknje": null,
+            "uvTisk": null,
+            "uvLak": "1/0 parcialno",
+            "topliTisk": null,
+            "vezava": null,
+            "izsek": null,
+            "plastifikacija": "1/0 sijaj",
+            "kooperant1": false,
+            "kooperant1Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant2": false,
+            "kooperant2Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant3": false,
+            "kooperant3Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "stevilkaOrodja": null
+          },
+          "dodelava2": {}
+        },
+        "stroski": {
+          "stroski1": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": "139,33",
+            "skupaj": null,
+            "skupajZDDV": null
+          },
+          "stroski2": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": null,
+            "skupaj": null,
+            "skupajZDDV": null
+          }
+        },
+        "posiljanje": {
+          "posiljanjePoPosti": true,
+          "naziv": null,
+          "naslov": null,
+          "kraj": null,
+          "postnaStevilka": null,
+          "osebnoPrevzem": false,
+          "dostavaNaLokacijo": false
+        },
+        "komentar": {
+          "komentar": ""
+        },
+        "_cenikMeta": {
+          "productId": "custom_10022026_2252",
+          "productName": "Nalepke",
+          "inputs": {
+            "INPUT_nalepka_oblika": "2",
+            "INPUT_nalepka_pravokotna_dolzina": "",
+            "INPUT_nalepka_pravokotna_sirina": "",
+            "INPUT_nalepka_okrogla_premer": 45,
+            "INPUT_nalepka_poljubna_dolzina": "",
+            "INPUT_nalepka_poljubna_sirina": "",
+            "INPUT_nalepka_material": "2",
+            "INPUT_nalepka_TISK": "1",
+            "INPUT_nalepka_plastifikacija": "2",
+            "INPUT_nalepka_3D_UV": "2",
+            "INPUT_nalepka_IZSEK_ZASEK": "1",
+            "INPUT_nalepka_st_kosov_koncno": 800,
+            "INPUT_nalepka_MUTACIJE__mutations_count": 1,
+            "INPUT_nalepka_MUTACIJE": 1
+          },
+          "result": {
+            "REZ_datum_express": "25.02.2026 sreda 09:00",
+            "REZ_nalepka_3_TR": 107.52000000000001,
+            "REZ_skup_masa_nalepke": 0.511,
+            "REZ_nalepka_8": 117.27110000000002,
+            "REZ_nalepka_8_TR": 117.27110000000002,
+            "REZ_nalepka_4_TR": 101.83,
+            "REZ_nalepka_zacetna_kolicina_2": 1200,
+            "REZ_nalepka_9": 139.33200000000002,
+            "VMES_st_kos_max_poljubna_oblika": 60,
+            "REZ_nalepka_1_TR": 89.60000000000001,
+            "REZ_OPOMBA": null,
+            "REZ_nalepka_7": 116.11000000000001,
+            "VMES_st_kos_max_pravokotna_oblika": 24,
+            "REZ_narejeno_cez_normalno": 5,
+            "REZ_nalepka_6": 122.196,
+            "VMES_st_pol_pravokotna_oblika": 34,
+            "REZ_nalepka_kolicina_3": 1600,
+            "REZ_postnina_tujina_nalepke": 25,
+            "REZ_narejeno_cez_hitra": 4,
+            "REZ_nalepka_7_TR": 116.11000000000001,
+            "REZ_nalepka_3": 107.52000000000001,
+            "REZ_nalepka_zacetna_kolicina": 800,
+            "REZ_nalepka_2_TR": 98.56000000000002,
+            "VMES_st_kos_okrogla_oblika": 54,
+            "REZ_hitro_normalno": "25.02.2026 sreda 11:00",
+            "REZ_narejeno_cez_express": 2,
+            "VMES_st_pol_okrogla_oblika": 14,
+            "REZ_nalepka_5_TR": 112.013,
+            "REZ_nalepka_4": 101.83,
+            "VMES_st_kos_zamaknjeno_okrogla_oblika": 60,
+            "REZ_nalepka_1": 89.60000000000001,
+            "REZ_nalepka_6_TR": 122.196,
+            "REZ_datum_normalno": "25.02.2026 sreda 12:00",
+            "REZ_postnina_SLO_nalepke": 0,
+            "REZ_nalepka_5": 112.013,
+            "REZ_nalepka_9_TR": 139.33200000000002,
+            "VMES_st_pol_poljubna_oblika": 14,
+            "REZ_nalepka_2": 98.56000000000002
+          },
+          "madeInHours": 10.689300000000001
+        }
+      }
+    },
+    "status": "confirmed",
+    "warnings": [],
+    "confirmedAt": "2026-02-24T21:45:03.669Z",
+    "rejectedAt": null
+  },
+  {
+    "importId": "cenik-1771969280109-qpzmdo",
+    "receivedAt": "2026-02-24T21:41:20.109Z",
+    "source": "ceniki",
+    "payload": {
+      "razbraniPodatki": {
+        "stevilkaNaloga": null,
+        "datumOdprtja": "2026-02-24T21:41",
+        "status": "v_delu",
+        "dobavljeno": false,
+        "prioritetnaOcena": null,
+        "emailPoslan": false,
+        "zakljucekEmailPoslan": false,
+        "kupec": {
+          "KupecID": null,
+          "Naziv": null,
+          "Naslov": null,
+          "Posta": null,
+          "Kraj": null,
+          "Telefon": null,
+          "Fax": null,
+          "IDzaDDV": null,
+          "email": null,
+          "narocilnica": null,
+          "rocniVnos": false,
+          "posljiEmail": null
+        },
+        "kontakt": {
+          "kontaktnaOseba": null,
+          "email": null,
+          "telefon": null
+        },
+        "rokIzdelave": "2026-02-25",
+        "rokIzdelaveUra": "09:41",
+        "datumNarocila": "2026-02-24",
+        "tisk": {
+          "tisk1": {
+            "predmet": "Nalepke",
+            "format": "ø 45 mm",
+            "obseg": "1",
+            "steviloKosov": "1600",
+            "material": "papirnata mat premazna nalepka",
+            "barve": "4/0 barvno enostransko (CMYK)",
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": false,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": false,
+            "b1Format": false,
+            "steviloMutacij": "1",
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          },
+          "tisk2": {
+            "predmet": null,
+            "format": null,
+            "obseg": null,
+            "steviloKosov": null,
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": null,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": null,
+            "b1Format": null,
+            "steviloMutacij": null,
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          }
+        },
+        "dodelava": {
+          "dodelava1": {
+            "razrez": true,
+            "vPolah": null,
+            "zgibanje": null,
+            "biganje": null,
+            "perforacija": null,
+            "biganjeRocnoZgibanje": null,
+            "lepljenje": null,
+            "lepljenjeMesta": null,
+            "lepljenjeSirina": null,
+            "lepljenjeBlokov": null,
+            "vrtanjeLuknje": null,
+            "velikostLuknje": null,
+            "uvTisk": null,
+            "uvLak": "1/0 parcialno",
+            "topliTisk": null,
+            "vezava": null,
+            "izsek": null,
+            "plastifikacija": "1/0 sijaj",
+            "kooperant1": false,
+            "kooperant1Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant2": false,
+            "kooperant2Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant3": false,
+            "kooperant3Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "stevilkaOrodja": null
+          },
+          "dodelava2": {}
+        },
+        "stroski": {
+          "stroski1": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": "139,33",
+            "skupaj": null,
+            "skupajZDDV": null
+          },
+          "stroski2": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": null,
+            "skupaj": null,
+            "skupajZDDV": null
+          }
+        },
+        "posiljanje": {
+          "posiljanjePoPosti": true,
+          "naziv": null,
+          "naslov": null,
+          "kraj": null,
+          "postnaStevilka": null,
+          "osebnoPrevzem": false,
+          "dostavaNaLokacijo": false
+        },
+        "komentar": {
+          "komentar": ""
+        },
+        "_cenikMeta": {
+          "productId": "custom_10022026_2252",
+          "productName": "Nalepke",
+          "inputs": {
+            "INPUT_nalepka_oblika": "2",
+            "INPUT_nalepka_pravokotna_dolzina": "",
+            "INPUT_nalepka_pravokotna_sirina": "",
+            "INPUT_nalepka_okrogla_premer": 45,
+            "INPUT_nalepka_poljubna_dolzina": "",
+            "INPUT_nalepka_poljubna_sirina": "",
+            "INPUT_nalepka_material": "2",
+            "INPUT_nalepka_TISK": "1",
+            "INPUT_nalepka_plastifikacija": "2",
+            "INPUT_nalepka_3D_UV": "2",
+            "INPUT_nalepka_IZSEK_ZASEK": "1",
+            "INPUT_nalepka_st_kosov_koncno": 800,
+            "INPUT_nalepka_MUTACIJE__mutations_count": 1,
+            "INPUT_nalepka_MUTACIJE": 1
+          },
+          "result": {
+            "REZ_datum_express": "25.02.2026 sreda 09:00",
+            "REZ_nalepka_3_TR": 107.52000000000001,
+            "REZ_skup_masa_nalepke": 0.511,
+            "REZ_nalepka_8": 117.27110000000002,
+            "REZ_nalepka_8_TR": 117.27110000000002,
+            "REZ_nalepka_4_TR": 101.83,
+            "REZ_nalepka_zacetna_kolicina_2": 1200,
+            "REZ_nalepka_9": 139.33200000000002,
+            "VMES_st_kos_max_poljubna_oblika": 60,
+            "REZ_nalepka_1_TR": 89.60000000000001,
+            "REZ_OPOMBA": null,
+            "REZ_nalepka_7": 116.11000000000001,
+            "VMES_st_kos_max_pravokotna_oblika": 24,
+            "REZ_narejeno_cez_normalno": 5,
+            "REZ_nalepka_6": 122.196,
+            "VMES_st_pol_pravokotna_oblika": 34,
+            "REZ_nalepka_kolicina_3": 1600,
+            "REZ_postnina_tujina_nalepke": 25,
+            "REZ_narejeno_cez_hitra": 4,
+            "REZ_nalepka_7_TR": 116.11000000000001,
+            "REZ_nalepka_3": 107.52000000000001,
+            "REZ_nalepka_zacetna_kolicina": 800,
+            "REZ_nalepka_2_TR": 98.56000000000002,
+            "VMES_st_kos_okrogla_oblika": 54,
+            "REZ_hitro_normalno": "25.02.2026 sreda 11:00",
+            "REZ_narejeno_cez_express": 2,
+            "VMES_st_pol_okrogla_oblika": 14,
+            "REZ_nalepka_5_TR": 112.013,
+            "REZ_nalepka_4": 101.83,
+            "VMES_st_kos_zamaknjeno_okrogla_oblika": 60,
+            "REZ_nalepka_1": 89.60000000000001,
+            "REZ_nalepka_6_TR": 122.196,
+            "REZ_datum_normalno": "25.02.2026 sreda 12:00",
+            "REZ_postnina_SLO_nalepke": 0,
+            "REZ_nalepka_5": 112.013,
+            "REZ_nalepka_9_TR": 139.33200000000002,
+            "VMES_st_pol_poljubna_oblika": 14,
+            "REZ_nalepka_2": 98.56000000000002
+          },
+          "madeInHours": 10.689300000000001
+        }
+      }
+    },
+    "status": "confirmed",
+    "warnings": [],
+    "confirmedAt": "2026-02-24T21:41:34.849Z",
+    "rejectedAt": null
+  },
+  {
+    "importId": "cenik-1771968528222-bc24a2",
+    "receivedAt": "2026-02-24T21:28:48.222Z",
+    "source": "ceniki",
+    "payload": {
+      "razbraniPodatki": {
+        "stevilkaNaloga": null,
+        "datumOdprtja": "2026-02-24T21:28",
+        "status": "v_delu",
+        "dobavljeno": false,
+        "prioritetnaOcena": null,
+        "emailPoslan": false,
+        "zakljucekEmailPoslan": false,
+        "kupec": {
+          "KupecID": null,
+          "Naziv": null,
+          "Naslov": null,
+          "Posta": null,
+          "Kraj": null,
+          "Telefon": null,
+          "Fax": null,
+          "IDzaDDV": null,
+          "email": null,
+          "narocilnica": null,
+          "rocniVnos": false,
+          "posljiEmail": null
+        },
+        "kontakt": {
+          "kontaktnaOseba": null,
+          "email": null,
+          "telefon": null
+        },
+        "rokIzdelave": "2026-03-02",
+        "rokIzdelaveUra": "11:06",
+        "datumNarocila": "2026-02-24",
+        "tisk": {
+          "tisk1": {
+            "predmet": "Nalepke",
+            "format": "ø 90 mm",
+            "obseg": "1",
+            "steviloKosov": "500",
+            "material": "papirnata mat premazna nalepka",
+            "barve": "1/0 črno belo enostransko (K)",
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": false,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": false,
+            "b1Format": false,
+            "steviloMutacij": "1",
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          },
+          "tisk2": {
+            "predmet": null,
+            "format": null,
+            "obseg": null,
+            "steviloKosov": null,
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": null,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": null,
+            "b1Format": null,
+            "steviloMutacij": null,
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          }
+        },
+        "dodelava": {
+          "dodelava1": {
+            "razrez": null,
+            "vPolah": null,
+            "zgibanje": null,
+            "biganje": null,
+            "perforacija": null,
+            "biganjeRocnoZgibanje": null,
+            "lepljenje": null,
+            "lepljenjeMesta": null,
+            "lepljenjeSirina": null,
+            "lepljenjeBlokov": null,
+            "vrtanjeLuknje": null,
+            "velikostLuknje": null,
+            "uvTisk": "enostransko 3D UV lakiranje",
+            "uvLak": null,
+            "topliTisk": null,
+            "vezava": null,
+            "izsek": "izrezane posamezne nalepke (poljubna oblika)",
+            "plastifikacija": "1/0 mat",
+            "kooperant1": false,
+            "kooperant1Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant2": false,
+            "kooperant2Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant3": false,
+            "kooperant3Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "stevilkaOrodja": null
+          },
+          "dodelava2": {}
+        },
+        "stroski": {
+          "stroski1": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": "112,05999999999999",
+            "skupaj": null,
+            "skupajZDDV": null
+          },
+          "stroski2": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": null,
+            "skupaj": null,
+            "skupajZDDV": null
+          }
+        },
+        "posiljanje": {
+          "posiljanjePoPosti": true,
+          "naziv": null,
+          "naslov": null,
+          "kraj": null,
+          "postnaStevilka": null,
+          "osebnoPrevzem": false,
+          "dostavaNaLokacijo": false
+        },
+        "komentar": {
+          "komentar": ""
+        },
+        "_cenikMeta": {
+          "productId": "custom_10022026_2252",
+          "productName": "Nalepke",
+          "inputs": {
+            "INPUT_nalepka_oblika": "2",
+            "INPUT_nalepka_pravokotna_dolzina": "",
+            "INPUT_nalepka_pravokotna_sirina": "",
+            "INPUT_nalepka_okrogla_premer": 90,
+            "INPUT_nalepka_poljubna_dolzina": "",
+            "INPUT_nalepka_poljubna_sirina": "",
+            "INPUT_nalepka_material": "2",
+            "INPUT_nalepka_TISK": "2",
+            "INPUT_nalepka_plastifikacija": "2",
+            "INPUT_nalepka_3D_UV": "2",
+            "INPUT_nalepka_IZSEK_ZASEK": "3",
+            "INPUT_nalepka_st_kosov_koncno": 500,
+            "INPUT_nalepka_MUTACIJE__mutations_count": 1,
+            "INPUT_nalepka_MUTACIJE": 1
+          },
+          "result": {
+            "REZ_datum_express": "25.02.2026 sreda 09:00",
+            "REZ_nalepka_3_TR": 134.47199999999998,
+            "REZ_skup_masa_nalepke": 1.533,
+            "REZ_nalepka_8": 165.5491,
+            "REZ_nalepka_8_TR": 165.5491,
+            "REZ_nalepka_4_TR": 138.62,
+            "REZ_nalepka_zacetna_kolicina_2": 750,
+            "REZ_nalepka_9": 196.69199999999998,
+            "VMES_st_kos_max_poljubna_oblika": 60,
+            "REZ_nalepka_1_TR": 112.05999999999999,
+            "REZ_OPOMBA": null,
+            "REZ_nalepka_7": 163.91,
+            "VMES_st_kos_max_pravokotna_oblika": 24,
+            "REZ_narejeno_cez_normalno": 6,
+            "REZ_nalepka_6": 166.344,
+            "VMES_st_pol_pravokotna_oblika": 21,
+            "REZ_nalepka_kolicina_3": 1000,
+            "REZ_postnina_tujina_nalepke": 25,
+            "REZ_narejeno_cez_hitra": 4,
+            "REZ_nalepka_7_TR": 163.91,
+            "REZ_nalepka_3": 134.47199999999998,
+            "REZ_nalepka_zacetna_kolicina": 500,
+            "REZ_nalepka_2_TR": 123.26599999999999,
+            "VMES_st_kos_okrogla_oblika": 12,
+            "REZ_hitro_normalno": "25.02.2026 sreda 11:00",
+            "REZ_narejeno_cez_express": 2,
+            "VMES_st_pol_okrogla_oblika": 42,
+            "REZ_nalepka_5_TR": 152.48200000000003,
+            "REZ_nalepka_4": 138.62,
+            "VMES_st_kos_zamaknjeno_okrogla_oblika": 12,
+            "REZ_nalepka_1": 112.05999999999999,
+            "REZ_nalepka_6_TR": 166.344,
+            "REZ_datum_normalno": "25.02.2026 sreda 13:00",
+            "REZ_postnina_SLO_nalepke": 0,
+            "REZ_nalepka_5": 152.48200000000003,
+            "REZ_nalepka_9_TR": 196.69199999999998,
+            "VMES_st_pol_poljubna_oblika": 9,
+            "REZ_nalepka_2": 123.26599999999999
+          },
+          "madeInHours": 36.1
+        }
+      }
+    },
+    "status": "confirmed",
+    "warnings": [],
+    "confirmedAt": "2026-02-24T21:29:34.350Z",
+    "rejectedAt": null
+  },
+  {
+    "importId": "cenik-1771968492108-ztg9za",
+    "receivedAt": "2026-02-24T21:28:12.108Z",
+    "source": "ceniki",
+    "payload": {
+      "razbraniPodatki": {
+        "stevilkaNaloga": null,
+        "datumOdprtja": "2026-02-24T21:28",
+        "status": "v_delu",
+        "dobavljeno": false,
+        "prioritetnaOcena": null,
+        "emailPoslan": false,
+        "zakljucekEmailPoslan": false,
+        "kupec": {
+          "KupecID": null,
+          "Naziv": null,
+          "Naslov": null,
+          "Posta": null,
+          "Kraj": null,
+          "Telefon": null,
+          "Fax": null,
+          "IDzaDDV": null,
+          "email": null,
+          "narocilnica": null,
+          "rocniVnos": false,
+          "posljiEmail": null
+        },
+        "kontakt": {
+          "kontaktnaOseba": null,
+          "email": null,
+          "telefon": null
+        },
+        "rokIzdelave": "2026-02-27",
+        "rokIzdelaveUra": "11:48",
+        "datumNarocila": "2026-02-24",
+        "tisk": {
+          "tisk1": {
+            "predmet": "Nalepke",
+            "format": "ø 50 mm",
+            "obseg": "1",
+            "steviloKosov": "500",
+            "material": "papirnata mat premazna nalepka",
+            "barve": "4/0 barvno enostransko (CMYK)",
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": false,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": false,
+            "b1Format": false,
+            "steviloMutacij": "1",
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          },
+          "tisk2": {
+            "predmet": null,
+            "format": null,
+            "obseg": null,
+            "steviloKosov": null,
+            "material": null,
+            "barve": null,
+            "steviloPol": null,
+            "kosovNaPoli": null,
+            "tiskaKooperant": null,
+            "kooperant": null,
+            "rokKooperanta": null,
+            "znesekKooperanta": null,
+            "b2Format": null,
+            "b1Format": null,
+            "steviloMutacij": null,
+            "mutacije": [
+              {
+                "steviloPol": null
+              }
+            ]
+          }
+        },
+        "dodelava": {
+          "dodelava1": {
+            "razrez": null,
+            "vPolah": null,
+            "zgibanje": null,
+            "biganje": null,
+            "perforacija": null,
+            "biganjeRocnoZgibanje": null,
+            "lepljenje": null,
+            "lepljenjeMesta": null,
+            "lepljenjeSirina": null,
+            "lepljenjeBlokov": null,
+            "vrtanjeLuknje": null,
+            "velikostLuknje": null,
+            "uvTisk": null,
+            "uvLak": null,
+            "topliTisk": null,
+            "vezava": null,
+            "izsek": "zarezano na poli (poljubna oblika)",
+            "plastifikacija": null,
+            "kooperant1": false,
+            "kooperant1Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant2": false,
+            "kooperant2Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "kooperant3": false,
+            "kooperant3Podatki": {
+              "imeKooperanta": null,
+              "predvidenRok": null,
+              "znesekDodelave": null,
+              "vrstaDodelave": null
+            },
+            "stevilkaOrodja": null
+          },
+          "dodelava2": {}
+        },
+        "stroski": {
+          "stroski1": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": "46,18",
+            "skupaj": null,
+            "skupajZDDV": null
+          },
+          "stroski2": {
+            "graficnaPriprava": null,
+            "cenaKlišeja": null,
+            "cenaIzsekovalnegaOrodja": null,
+            "cenaVzorca": null,
+            "cenaBrezDDV": null,
+            "skupaj": null,
+            "skupajZDDV": null
+          }
+        },
+        "posiljanje": {
+          "posiljanjePoPosti": true,
+          "naziv": null,
+          "naslov": null,
+          "kraj": null,
+          "postnaStevilka": null,
+          "osebnoPrevzem": false,
+          "dostavaNaLokacijo": false
+        },
+        "komentar": {
+          "komentar": ""
+        },
+        "_cenikMeta": {
+          "productId": "custom_10022026_2252",
+          "productName": "Nalepke",
+          "inputs": {
+            "INPUT_nalepka_oblika": "2",
+            "INPUT_nalepka_pravokotna_dolzina": "",
+            "INPUT_nalepka_pravokotna_sirina": "",
+            "INPUT_nalepka_okrogla_premer": 50,
+            "INPUT_nalepka_poljubna_dolzina": "",
+            "INPUT_nalepka_poljubna_sirina": "",
+            "INPUT_nalepka_material": "2",
+            "INPUT_nalepka_TISK": "1",
+            "INPUT_nalepka_plastifikacija": "",
+            "INPUT_nalepka_3D_UV": "",
+            "INPUT_nalepka_IZSEK_ZASEK": "2",
+            "INPUT_nalepka_st_kosov_koncno": 500,
+            "INPUT_nalepka_MUTACIJE__mutations_count": 1,
+            "INPUT_nalepka_MUTACIJE": 1
+          },
+          "result": {
+            "REZ_datum_express": "25.02.2026 sreda 08:00",
+            "REZ_nalepka_3_TR": 55.416,
+            "REZ_skup_masa_nalepke": 0.4015,
+            "REZ_nalepka_8": 62.5897,
+            "REZ_nalepka_8_TR": 62.5897,
+            "REZ_nalepka_4_TR": 54.08,
+            "REZ_nalepka_zacetna_kolicina_2": 750,
+            "REZ_nalepka_9": 74.36399999999999,
+            "VMES_st_kos_max_poljubna_oblika": 60,
+            "REZ_nalepka_1_TR": 46.18,
+            "REZ_OPOMBA": null,
+            "REZ_nalepka_7": 61.97,
+            "VMES_st_kos_max_pravokotna_oblika": 24,
+            "REZ_narejeno_cez_normalno": 6,
+            "REZ_nalepka_6": 64.896,
+            "VMES_st_pol_pravokotna_oblika": 21,
+            "REZ_nalepka_kolicina_3": 1000,
+            "REZ_postnina_tujina_nalepke": 25,
+            "REZ_narejeno_cez_hitra": 3,
+            "REZ_nalepka_7_TR": 61.97,
+            "REZ_nalepka_3": 55.416,
+            "REZ_nalepka_zacetna_kolicina": 500,
+            "REZ_nalepka_2_TR": 50.798,
+            "VMES_st_kos_okrogla_oblika": 40,
+            "REZ_hitro_normalno": "25.02.2026 sreda 10:00",
+            "REZ_narejeno_cez_express": 1,
+            "VMES_st_pol_okrogla_oblika": 11,
+            "REZ_nalepka_5_TR": 59.488,
+            "REZ_nalepka_4": 54.08,
+            "VMES_st_kos_zamaknjeno_okrogla_oblika": 48,
+            "REZ_nalepka_1": 46.18,
+            "REZ_nalepka_6_TR": 64.896,
+            "REZ_datum_normalno": "25.02.2026 sreda 13:00",
+            "REZ_postnina_SLO_nalepke": 3.8,
+            "REZ_nalepka_5": 59.488,
+            "REZ_nalepka_9_TR": 74.36399999999999,
+            "VMES_st_pol_poljubna_oblika": 9,
+            "REZ_nalepka_2": 50.798
+          },
+          "madeInHours": 28.799999999999997
+        }
+      }
+    },
+    "status": "confirmed",
+    "warnings": [],
+    "confirmedAt": "2026-02-24T21:29:34.352Z",
+    "rejectedAt": null
+  }
+]
