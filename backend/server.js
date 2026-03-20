@@ -621,8 +621,10 @@ app.post('/api/kupec', async (req, res) => {
   let pool = null;
   try {
     const { Naziv, Naslov, Posta, Kraj, Telefon, Fax, IDzaDDV, email } = req.body || {};
-    if (!Naziv) {
-      return res.status(400).json({ ok: false, error: 'Polje Naziv je obvezno.' });
+    const nazivTrim = String(Naziv || '').trim();
+    const hasOtherKupecPolje = [Naslov, Posta, Kraj, Telefon, Fax, IDzaDDV, email].some((x) => String(x || '').trim());
+    if (!nazivTrim && !hasOtherKupecPolje) {
+      return res.status(400).json({ ok: false, error: 'Vnesite vsaj naziv ali drug kupčev podatek.' });
     }
     const targetDb = process.env.DB_NAME || process.env.DB_NAME_TEST || 'DelovniNalog_TEST';
     const cfg = buildDbConfig(targetDb);
@@ -657,7 +659,7 @@ app.post('/api/kupec', async (req, res) => {
     }
 
     const request = pool.request();
-    request.input('Naziv', sql.NVarChar(255), Naziv || '');
+    request.input('Naziv', sql.NVarChar(255), nazivTrim || '(Kupčevi podatki brez naziva)');
     request.input('Naslov', sql.NVarChar(255), Naslov || '');
     request.input('Posta', sql.NVarChar(50), Posta || '');
     request.input('Kraj', sql.NVarChar(255), Kraj || '');
@@ -684,7 +686,17 @@ app.post('/api/kupec', async (req, res) => {
     const newKupecID = result.recordset && result.recordset[0] ? parseInt(result.recordset[0].KupecID, 10) : null;
     return res.json({
       ok: true,
-      kupec: { KupecID: newKupecID, Naziv, Naslov, Posta, Kraj, Telefon, Fax, IDzaDDV, email: hasEmailColumn ? (email || '') : undefined }
+      kupec: {
+        KupecID: newKupecID,
+        Naziv: nazivTrim || '(Kupčevi podatki brez naziva)',
+        Naslov,
+        Posta,
+        Kraj,
+        Telefon,
+        Fax,
+        IDzaDDV,
+        email: hasEmailColumn ? (email || '') : undefined
+      }
     });
   } catch (err) {
     console.error('Napaka pri vnosu kupca:', err);
@@ -1781,17 +1793,18 @@ async function handleGetDelovniNalogi(req, res, opts) {
             if (typeof dodelava1.perforacija === 'undefined') dodelava1.perforacija = !!src.Perforacija;
           };
           applyDod(d1); applyDod(d2);
-          // Stroški
+          // Stroški — ločeno po poziciji (ne seštevaj obeh v stroski1, sicer se cena 2 prikaže pri ceni 1)
           const stroski1 = {};
-          const formatCena = (n) => Number.isFinite(n) ? n.toFixed(2).replace('.', ',') : undefined;
+          const stroski2 = {};
+          const formatCena = (n) => (Number.isFinite(n) ? n.toFixed(2).replace('.', ',') : undefined);
           const cena1 = pickXmlPoz(1)?.CenaBrezDDV != null ? Number(pickXmlPoz(1).CenaBrezDDV) : null;
           const cena2 = pickXmlPoz(2)?.CenaBrezDDV != null ? Number(pickXmlPoz(2).CenaBrezDDV) : null;
-          const totalCena = [cena1, cena2].filter(v => typeof v === 'number' && isFinite(v)).reduce((a, b) => a + b, 0);
-          if (totalCena > 0) stroski1.cenaBrezDDV = formatCena(totalCena);
+          if (cena1 != null && isFinite(cena1) && cena1 > 0) stroski1.cenaBrezDDV = formatCena(cena1);
+          if (cena2 != null && isFinite(cena2) && cena2 > 0) stroski2.cenaBrezDDV = formatCena(cena2);
           const gp1 = pickXmlPoz(1)?.GraficnaPriprava != null ? Number(pickXmlPoz(1).GraficnaPriprava) : null;
           const gp2 = pickXmlPoz(2)?.GraficnaPriprava != null ? Number(pickXmlPoz(2).GraficnaPriprava) : null;
-          const totalGP = [gp1, gp2].filter(v => typeof v === 'number' && isFinite(v)).reduce((a, b) => a + b, 0);
-          if (totalGP > 0) stroski1.graficnaPriprava = formatCena(totalGP);
+          if (gp1 != null && isFinite(gp1) && gp1 > 0) stroski1.graficnaPriprava = formatCena(gp1);
+          if (gp2 != null && isFinite(gp2) && gp2 > 0) stroski2.graficnaPriprava = formatCena(gp2);
           const out = {
             normalized: true,
             stevilkaNaloga,
@@ -1808,7 +1821,9 @@ async function handleGetDelovniNalogi(req, res, opts) {
               komentar,
               ...(Object.keys(tisk).length ? { tisk } : {}),
               ...(Object.values(dodelava1).some(v => v) ? { dodelava: { dodelava1 } } : {}),
-              ...(Object.values(stroski1).some(v => v) ? { stroski: { stroski1 } } : {}),
+              ...((Object.values(stroski1).some(v => v) || Object.values(stroski2).some(v => v))
+                ? { stroski: { ...(Object.values(stroski1).some(v => v) ? { stroski1 } : {}), ...(Object.values(stroski2).some(v => v) ? { stroski2 } : {}) } }
+                : {}),
             },
             datumShranjevanja: new Date().toISOString()
           };
@@ -3104,26 +3119,43 @@ app.post('/api/delovni-nalog', async (req, res) => {
 
     // 3) Vnos pozicij (tisk1/tisk2) + dodelave + mutacije + stroški + material
     const upsertPozicija = async (pozIdx, tiskObj, dodelavaObj, stroskiObj, stroskiGroup) => {
-      if (!tiskObj) return;
+      const tiskSafe = (tiskObj != null && typeof tiskObj === 'object') ? tiskObj : {};
+      const st = (stroskiObj && typeof stroskiObj === 'object') ? stroskiObj : {};
+      const stroskiPolja = ['graficnaPriprava', 'cenaKlišeja', 'cenaIzsekovalnegaOrodja', 'cenaVzorca', 'cenaBrezDDV'];
+      const imaStroski = stroskiPolja.some((k) => st[k] != null && String(st[k]).trim() !== '');
+      const imaDodelavo = (() => {
+        const dd = dodelavaObj && typeof dodelavaObj === 'object' ? dodelavaObj : {};
+        for (const v of Object.values(dd)) {
+          if (v === true) return true;
+          if (typeof v === 'string' && String(v).trim()) return true;
+          if (typeof v === 'number' && v !== 0) return true;
+          if (v && typeof v === 'object' && Object.keys(v).length) return true;
+        }
+        return false;
+      })();
+      const imaTisk = ['predmet', 'format', 'material', 'barve', 'obseg', 'steviloKosov', 'steviloPol', 'kosovNaPoli'].some(
+        (k) => tiskSafe[k] != null && String(tiskSafe[k]).trim() !== ''
+      ) || (Array.isArray(tiskSafe.mutacije) && tiskSafe.mutacije.some((m) => m && String(m.steviloPol || '').trim()));
+      if (!imaStroski && !imaDodelavo && !imaTisk) return;
       // DelovniNalogPozicija (osnovna) – pred vpisom odstrani star zapis (upsert)
       console.log(`DELETE Pozicija base for DN ${delovniNalogID}, Pozicija ${pozIdx}`);
       await runq(`DELETE FROM dbo.DelovniNalogPozicija WHERE DelovniNalogID=@DN AND Pozicija=@Poz`, [
         { name: 'DN', type: sql.Int, value: delovniNalogID },
         { name: 'Poz', type: sql.Int, value: pozIdx }
       ]);
-      const tiskText = normalizeBarveFull(tiskObj.barve);
+      const tiskText = normalizeBarveFull(tiskSafe.barve);
       const tiskId = await tryResolveIdGen('Tisk', 'Tisk', 'TiskID', tiskText);
       const rqP = new sql.Request(tx);
       rqP.input('DN', sql.Int, delovniNalogID);
       rqP.input('Poz', sql.Int, pozIdx);
-      rqP.input('Predmet', sql.NVarChar(200), tiskObj.predmet || null);
-      rqP.input('Format', sql.NVarChar(50), tiskObj.format || null);
-      rqP.input('Obseg', sql.Int, safeInt(tiskObj.obseg));
-      rqP.input('StKosov', sql.Int, safeInt(tiskObj.steviloKosov));
+      rqP.input('Predmet', sql.NVarChar(200), tiskSafe.predmet || null);
+      rqP.input('Format', sql.NVarChar(50), tiskSafe.format || null);
+      rqP.input('Obseg', sql.Int, safeInt(tiskSafe.obseg));
+      rqP.input('StKosov', sql.Int, safeInt(tiskSafe.steviloKosov));
       rqP.input('TiskID', sql.Int, tiskId);
-      rqP.input('Collate', sql.Bit, tiskObj.collate ? 1 : 0);
-      rqP.input('StPol', sql.Int, safeInt(tiskObj.steviloPol));
-      rqP.input('StKosovNaPoli', sql.Int, safeInt(tiskObj.kosovNaPoli));
+      rqP.input('Collate', sql.Bit, tiskSafe.collate ? 1 : 0);
+      rqP.input('StPol', sql.Int, safeInt(tiskSafe.steviloPol));
+      rqP.input('StKosovNaPoli', sql.Int, safeInt(tiskSafe.kosovNaPoli));
 				// Dinamično dodaj Ponatis=0, če stolpec obstaja in je NOT NULL
 				let colsSql = '[DelovniNalogID],[Pozicija],[Predmet],[Format],[Obseg],[StKosov],[TiskID],[Collate],[StPol],[StKosovNaPoli]';
 				let valsSql = '@DN,@Poz,@Predmet,@Format,@Obseg,@StKosov,@TiskID,@Collate,@StPol,@StKosovNaPoli';
@@ -3157,8 +3189,8 @@ app.post('/api/delovni-nalog', async (req, res) => {
         }
       };
       // Podpri B1/B2 tudi v osnovni tabeli Pozicija (privzeto 0, če ni)
-      await ensureBit('B1Format', !!tiskObj.b1Format);
-      await ensureBit('B2Format', !!tiskObj.b2Format);
+      await ensureBit('B1Format', !!tiskSafe.b1Format);
+      await ensureBit('B2Format', !!tiskSafe.b2Format);
       // Ponastavi bitovne dodelave na 0, razen če jih dodelavaObj prepiše
       const d = dodelavaObj || {};
       await ensureBit('Razrez', !!d.razrez);
@@ -3204,12 +3236,12 @@ app.post('/api/delovni-nalog', async (req, res) => {
         const rqE = new sql.Request(tx);
         rqE.input('DN', sql.Int, delovniNalogID);
         rqE.input('Poz', sql.Int, pozIdx);
-        rqE.input('B1', sql.Bit, tiskObj.b1Format ? 1 : 0);
-        rqE.input('B2', sql.Bit, tiskObj.b2Format ? 1 : 0);
-        rqE.input('TK', sql.Bit, tiskObj.tiskaKooperant ? 1 : 0);
-        rqE.input('KN', sql.NVarChar(200), tiskObj.kooperant || null);
-        rqE.input('RR', sql.DateTime, safeDate(tiskObj.rokKooperanta) ? new Date(safeDate(tiskObj.rokKooperanta)) : null);
-        rqE.input('ZK', sql.Decimal(10,2), safeDec(tiskObj.znesekKooperanta));
+        rqE.input('B1', sql.Bit, tiskSafe.b1Format ? 1 : 0);
+        rqE.input('B2', sql.Bit, tiskSafe.b2Format ? 1 : 0);
+        rqE.input('TK', sql.Bit, tiskSafe.tiskaKooperant ? 1 : 0);
+        rqE.input('KN', sql.NVarChar(200), tiskSafe.kooperant || null);
+        rqE.input('RR', sql.DateTime, safeDate(tiskSafe.rokKooperanta) ? new Date(safeDate(tiskSafe.rokKooperanta)) : null);
+        rqE.input('ZK', sql.Decimal(10,2), safeDec(tiskSafe.znesekKooperanta));
         rqE.input('SO', sql.NVarChar(50), dodelavaObj && dodelavaObj.stevilkaOrodja ? dodelavaObj.stevilkaOrodja : null);
         await rqE.query(`
           INSERT INTO dbo.DelovniNalogPozicijaExt
@@ -3219,15 +3251,15 @@ app.post('/api/delovni-nalog', async (req, res) => {
       }
 
       // Mutacije
-      if (await tableExists('DelovniNalogPozicijaMutacija') && Array.isArray(tiskObj.mutacije)) {
+      if (await tableExists('DelovniNalogPozicijaMutacija') && Array.isArray(tiskSafe.mutacije)) {
         // Remove stare mutacije, sicer dobimo PK konflikt (DelovniNalogID,Pozicija,Zaporedje)
         console.log(`DELETE Mutacije for DN ${delovniNalogID}, Pozicija ${pozIdx}`);
         await runq(`DELETE FROM dbo.DelovniNalogPozicijaMutacija WHERE DelovniNalogID=@DN AND Pozicija=@Poz`, [
           { name: 'DN', type: sql.Int, value: delovniNalogID },
           { name: 'Poz', type: sql.Int, value: pozIdx }
         ]);
-        for (let i = 0; i < tiskObj.mutacije.length; i++) {
-          const m = tiskObj.mutacije[i] || {};
+        for (let i = 0; i < tiskSafe.mutacije.length; i++) {
+          const m = tiskSafe.mutacije[i] || {};
           console.log(`Inserting Mutacija #${i + 1} for DN ${delovniNalogID}, Pozicija ${pozIdx}`);
           await runq(`
             INSERT INTO dbo.DelovniNalogPozicijaMutacija
@@ -3366,14 +3398,14 @@ app.post('/api/delovni-nalog', async (req, res) => {
           { name: 'DN', type: sql.Int, value: delovniNalogID },
           { name: 'Poz', type: sql.Int, value: pozIdx }
         ]);
-        if (tiskObj.material) {
+        if (tiskSafe.material) {
           await runq(`
             INSERT INTO dbo.DelovniNalogPozicijaMaterial ([DelovniNalogID],[Pozicija],[RawText],[GramaturaMaterialID])
             VALUES (@DN,@Poz,@Raw,NULL)
           `, [
             { name: 'DN', type: sql.Int, value: delovniNalogID },
             { name: 'Poz', type: sql.Int, value: pozIdx },
-            { name: 'Raw', type: sql.NVarChar(200), value: tiskObj.material }
+            { name: 'Raw', type: sql.NVarChar(200), value: tiskSafe.material }
           ]);
         }
       }
@@ -4172,6 +4204,12 @@ app.get('/api/delovni-nalog/:id', async (req, res) => {
         };
       }
     };
+    const formatMoneySl = (v) => {
+      if (v == null || v === '') return null;
+      const n = Number(String(v).replace(/\./g, '').replace(',', '.'));
+      if (!Number.isFinite(n)) return String(v);
+      return n.toFixed(2).replace('.', ',');
+    };
     const buildStroski = (poz, grp) => {
       const base = pozByNum.get(poz) || {};
       const all = (strByNum.get(poz) || []);
@@ -4181,8 +4219,11 @@ app.get('/api/delovni-nalog/:id', async (req, res) => {
         rows = all.filter(r => Number(r.Skupina) === 1);
       }
       const out = {};
+      const moneyKeys = new Set(['graficnaPriprava', 'cenaKlišeja', 'cenaIzsekovalnegaOrodja', 'cenaVzorca', 'cenaBrezDDV']);
       const setIf = (key, row) => {
-        if (row && row.Znesek != null) out[key] = String(row.Znesek);
+        if (!row || row.Znesek == null || row.Znesek === '') return;
+        const raw = String(row.Znesek);
+        out[key] = moneyKeys.has(key) ? (formatMoneySl(raw) || raw) : raw;
       };
       const byNaziv = new Map(rows.map(r => [String(r.Naziv).toLowerCase(), r]));
       setIf('graficnaPriprava', byNaziv.get('graficnaPriprava'.toLowerCase()));
@@ -4199,11 +4240,11 @@ app.get('/api/delovni-nalog/:id', async (req, res) => {
         const ck = numToStr(pick('CenaKlišeja')) || numToStr(pick('CenaKliseja'));
         const ci = numToStr(pick('CenaIzsekovalnegaOrodja'));
         const cv = numToStr(pick('CenaVzorca'));
-        if (g != null && g !== '') out.graficnaPriprava = g;
-        if (ck != null && ck !== '') out.cenaKlišeja = ck;
-        if (ci != null && ci !== '') out.cenaIzsekovalnegaOrodja = ci;
-        if (cv != null && cv !== '') out.cenaVzorca = cv;
-        if (bb != null && bb !== '') out.cenaBrezDDV = bb;
+        if (g != null && g !== '') out.graficnaPriprava = formatMoneySl(g) || g;
+        if (ck != null && ck !== '') out.cenaKlišeja = formatMoneySl(ck) || ck;
+        if (ci != null && ci !== '') out.cenaIzsekovalnegaOrodja = formatMoneySl(ci) || ci;
+        if (cv != null && cv !== '') out.cenaVzorca = formatMoneySl(cv) || cv;
+        if (bb != null && bb !== '') out.cenaBrezDDV = formatMoneySl(bb) || bb;
       }
       return out;
     };

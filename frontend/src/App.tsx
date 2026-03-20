@@ -184,6 +184,63 @@ function jeNalogPrazen(nalog: any): boolean {
   return !nalog || Object.values(nalog).every(v => v === null || v === '' || (typeof v === 'object' && jeNalogPrazen(v)));
 }
 
+/** Ali ima nalog vsaj eno smiselno vsebino (brez samodejnega datuma odprtja / strukt. placeholderjev). */
+function nalogImaVsebinskePodatke(p: any): boolean {
+  if (!p || typeof p !== 'object') return false;
+  const str = (v: any) => (v == null ? '' : String(v).trim());
+  const ku = p.kupec;
+  if (ku && typeof ku === 'object') {
+    if (Number(ku.KupecID) > 0) return true;
+    const kuKeys = ['Naziv', 'Naslov', 'Posta', 'Kraj', 'Telefon', 'Fax', 'IDzaDDV', 'email', 'Email', 'narocilnica', 'Narocilnica'];
+    if (kuKeys.some((k) => str((ku as any)[k]))) return true;
+    if (ku.posljiEmail || ku.PosljiEmail) return true;
+  }
+  if (str(p.komentar?.komentar ?? p.komentar)) return true;
+  const stHit = (st: any) =>
+    st &&
+    ['graficnaPriprava', 'cenaKlišeja', 'cenaIzsekovalnegaOrodja', 'cenaVzorca', 'cenaBrezDDV'].some((k) => str(st[k]));
+  if (stHit(p.stroski1) || stHit(p.stroski2)) return true;
+  const pos = p.posiljanje;
+  if (pos && typeof pos === 'object') {
+    if (['naziv', 'naslov', 'kraj', 'postnaStevilka', 'kontaktnaOseba', 'kontakt', 'email', 'Email'].some((k) => str((pos as any)[k])))
+      return true;
+    if (pos.posiljanjePoPosti || pos.osebnoPrevzem || pos.dostavaNaLokacijo) return true;
+  }
+  const kont = p.kontakt;
+  if (kont && typeof kont === 'object') {
+    if (str(kont.kontaktnaOseba) || str(kont.email) || str(kont.telefon)) return true;
+  }
+  const dodelavaVelja = (d: any) => {
+    if (!d || typeof d !== 'object') return false;
+    for (const [k, v] of Object.entries(d)) {
+      if (typeof k === 'string' && k.toLowerCase().includes('kooperant') && k.toLowerCase().includes('podatki')) {
+        if (v && typeof v === 'object' && Object.values(v).some((x) => str(x))) return true;
+        continue;
+      }
+      if (v === true) return true;
+      if (typeof v === 'string' && str(v)) return true;
+      if (typeof v === 'number' && v !== 0) return true;
+    }
+    return false;
+  };
+  if (dodelavaVelja(p.dodelava1) || dodelavaVelja(p.dodelava2)) return true;
+  const rekl = p.reklamacija;
+  if (rekl && (rekl.aktivna || str(rekl.vrsta) || str(rekl.znesek))) return true;
+  const tiskDelMaPomen = (t: any) => {
+    if (!t || typeof t !== 'object') return false;
+    if (str(t.predmet) || str(t.format) || str(t.material) || str(t.barve)) return true;
+    if (str(t.steviloKosov) || str(t.steviloPol) || str(t.kosovNaPoli)) return true;
+    if (t.b1Format || t.b2Format || t.tiskaKooperant || str(t.kooperant) || str(t.znesekKooperanta) || str(t.stevilkaOrodja)) return true;
+    if (str(t.obseg) && str(t.obseg) !== '1') return true;
+    if (Array.isArray(t.mutacije) && t.mutacije.some((m: any) => m && str(m.steviloPol))) return true;
+    return false;
+  };
+  const tisk = p.tisk;
+  if (tisk && (tiskDelMaPomen(tisk.tisk1) || tiskDelMaPomen(tisk.tisk2))) return true;
+  if (str((p as any).rokIzdelave) || str((p as any).rokIzdelaveUra)) return true;
+  return false;
+}
+
 // Funkcija za preverjanje, ali je datum delovni dan (pon-pet)
 const jeDelovniDan = (datum: Date): boolean => {
   const dan = datum.getDay();
@@ -2189,6 +2246,12 @@ ${totalsHtml}
       } as any));
     }
 
+    if (!nalogImaVsebinskePodatke(mergedPodatki)) {
+      setSqlRemoteSaveStatus('error');
+      setSqlRemoteSaveError('Ni vnešenih podatkov. Izpolnite vsaj eno polje, preden shranite.');
+      return false;
+    }
+
     // Email: avtomatski predogled naj se pokaže le 1x (pri prvi shrambI), tudi če uporabnik prekliče.
     // Ključ je, da "ponujeno" nastavimo PREDEN pošljemo v SQL, sicer se po reload-u ponovi.
     let openedEmailPreview = false;
@@ -2269,51 +2332,45 @@ ${totalsHtml}
 
         if (k0 && !hasValidKupecId) {
           const nazivKupca = String(k0.Naziv || '').trim();
-          if (!nazivKupca) {
-            // Obrazec ima "prazen" kupec objekt brez naziva — shranjujemo nalog brez kupca.
-            podatkiZaSql.kupec = null;
-            k0 = null;
-          } else {
-            const resK = await fetch('/api/kupec', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                Naziv: nazivKupca,
-                Naslov: k0.Naslov || '',
-                Posta: k0.Posta || '',
-                Kraj: k0.Kraj || '',
-                Telefon: k0.Telefon || '',
-                Fax: k0.Fax || '',
-                IDzaDDV: k0.IDzaDDV || '',
-                email: k0.email || '',
-              }),
-            });
-            const dataK = await resK.json().catch(() => ({} as any));
-            if (!resK.ok || !dataK.ok) {
-              throw new Error(dataK?.error || 'Vnos kupca v bazo ni uspel.');
-            }
-            const idNovi = Number(dataK.kupec?.KupecID);
-            if (!Number.isFinite(idNovi) || idNovi <= 0) {
-              throw new Error('Strežnik ni vrnil veljavnega KupecID.');
-            }
-            const posodobljenKupec = {
-              ...k0,
-              KupecID: idNovi,
-              rocniVnos: false,
-              Naziv: dataK.kupec?.Naziv ?? k0.Naziv,
-              Naslov: dataK.kupec?.Naslov ?? k0.Naslov,
-              Posta: dataK.kupec?.Posta ?? k0.Posta,
-              Kraj: dataK.kupec?.Kraj ?? k0.Kraj,
-              Telefon: dataK.kupec?.Telefon ?? k0.Telefon,
-              Fax: dataK.kupec?.Fax ?? k0.Fax,
-              IDzaDDV: dataK.kupec?.IDzaDDV ?? k0.IDzaDDV,
-              email: dataK.kupec?.email ?? k0.email,
-            };
-            podatkiZaSql.kupec = posodobljenKupec;
-            k0 = posodobljenKupec;
-            if (openNalogRef.current === saveFor && saveSeq === saveSeqRef.current) {
-              setNalogPodatki((prev: any) => ({ ...prev, kupec: posodobljenKupec }));
-            }
+          const resK = await fetch('/api/kupec', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              Naziv: nazivKupca || '(Brez naziva)',
+              Naslov: k0.Naslov || '',
+              Posta: k0.Posta || '',
+              Kraj: k0.Kraj || '',
+              Telefon: k0.Telefon || '',
+              Fax: k0.Fax || '',
+              IDzaDDV: k0.IDzaDDV || '',
+              email: k0.email || '',
+            }),
+          });
+          const dataK = await resK.json().catch(() => ({} as any));
+          if (!resK.ok || !dataK.ok) {
+            throw new Error(dataK?.error || 'Vnos kupca v bazo ni uspel.');
+          }
+          const idNovi = Number(dataK.kupec?.KupecID);
+          if (!Number.isFinite(idNovi) || idNovi <= 0) {
+            throw new Error('Strežnik ni vrnil veljavnega KupecID.');
+          }
+          const posodobljenKupec = {
+            ...k0,
+            KupecID: idNovi,
+            rocniVnos: false,
+            Naziv: (dataK.kupec?.Naziv ?? nazivKupca) || '(Brez naziva)',
+            Naslov: dataK.kupec?.Naslov ?? k0.Naslov,
+            Posta: dataK.kupec?.Posta ?? k0.Posta,
+            Kraj: dataK.kupec?.Kraj ?? k0.Kraj,
+            Telefon: dataK.kupec?.Telefon ?? k0.Telefon,
+            Fax: dataK.kupec?.Fax ?? k0.Fax,
+            IDzaDDV: dataK.kupec?.IDzaDDV ?? k0.IDzaDDV,
+            email: dataK.kupec?.email ?? k0.email,
+          };
+          podatkiZaSql.kupec = posodobljenKupec;
+          k0 = posodobljenKupec;
+          if (openNalogRef.current === saveFor && saveSeq === saveSeqRef.current) {
+            setNalogPodatki((prev: any) => ({ ...prev, kupec: posodobljenKupec }));
           }
         }
 
