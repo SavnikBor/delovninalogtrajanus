@@ -35,6 +35,14 @@ Both can be started together from the root with `npm run dev` (uses `concurrentl
 
 This project uses **npm** with `package-lock.json` at the root and in `backend/`. The `frontend/` directory has no lockfile.
 
+### DB connectivity from Cloud VM
+
+The MSSQL server (`TRAJSRV25\SQLEXP`) is a corporate/internal Windows SQL Server not reachable from the cloud VM (DNS fails to resolve). The app's core workflow (creating, filling, saving, and retrieving work orders) still works via localStorage/IndexedDB on the frontend. DB-dependent API endpoints (`/api/kupec`, `/api/delovninalog`, etc.) return 500 errors. To test full DB functionality, a VPN or tunneled connection to the corporate network would be needed.
+
+### Local storage fallback
+
+The frontend saves work orders to both the backend (SQL) and local IndexedDB (via Dexie). When the DB is unreachable, the local save still succeeds. The "Shrani" (Save) button, "Novi nalog" (New Order), and the left sidebar list all work with local storage. The "Seznam prioritetnih nalogov" (Priority List) view also reads from locally saved data.
+
 ### Node.js version
 
 Tested and working with Node.js v22.x (the version available in the cloud VM).
