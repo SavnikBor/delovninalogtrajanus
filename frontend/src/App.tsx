@@ -846,6 +846,9 @@ function App() {
   const [pendingAction, setPendingAction] = useState<null | (() => void)>(null);
   const [showSavedAnim, setShowSavedAnim] = useState(false);
   const [showEmailAnim, setShowEmailAnim] = useState(false);
+  /** O SQL strežniku (POST /full); ne mešati z nalogShranjeno (samo „brez neshranjenih sprememb v obrazcu“). */
+  const [sqlRemoteSaveStatus, setSqlRemoteSaveStatus] = useState<'idle' | 'pending' | 'success' | 'error' | 'local_only'>('idle');
+  const [sqlRemoteSaveError, setSqlRemoteSaveError] = useState<string | null>(null);
   const [aktivniZavihek, setAktivniZavihek] = useState<'delovniNalog'|'prioritetniNalogi'|'kapacitete'|'analiza'>('delovniNalog');
   const [analizaUnlocked, setAnalizaUnlocked] = useState(false);
   const [showAnalizaPrompt, setShowAnalizaPrompt] = useState(false);
@@ -868,6 +871,20 @@ function App() {
   useEffect(() => {
     localStorage.setItem('closedTasks', JSON.stringify(closedTasks));
   }, [closedTasks]);
+
+  // Ob spremembah obrazca: počisti napake / „local_only“ / „success“, med aktivnim POST /full pa ohrani „pending“
+  useEffect(() => {
+    if (!nalogShranjeno) {
+      setSqlRemoteSaveError(null);
+      setSqlRemoteSaveStatus((prev) => (prev === 'pending' ? prev : 'idle'));
+    }
+  }, [nalogShranjeno]);
+
+  useEffect(() => {
+    if (sqlRemoteSaveStatus !== 'local_only') return;
+    const t = setTimeout(() => setSqlRemoteSaveStatus('idle'), 9000);
+    return () => clearTimeout(t);
+  }, [sqlRemoteSaveStatus]);
 
   // Odstranjena bližnjica Ctrl+S zaradi težav s podvajanjem/prepisovanjem nalogov
 
@@ -1136,7 +1153,7 @@ function App() {
     setNalogShranjeno(false);
   };
 
-  const handleShraniNalog = () => {
+  const handleShraniNalog = async () => {
     // Združi z obstoječim, da se ob Ctrl+S ne prepišejo polja z null/undefined
     const obstojeci = vsiNalogi.find(n => n.stevilkaNaloga === stevilkaNaloga);
     const stariPodatki = obstojeci?.podatki || {};
@@ -1191,104 +1208,10 @@ function App() {
     const noviSeznam = [...vsiNalogi.filter(n => n.stevilkaNaloga !== stevilkaNaloga), novNalog].sort((a, b) => b.stevilkaNaloga - a.stevilkaNaloga);
     shraniNalogeVLokalno(noviSeznam);
     setVsiNalogi(noviSeznam);
+    // Lokalno usklajeno z obrazcem; to še ne pomeni uspešnega SQL zapisa.
     setNalogShranjeno(true);
-    // Async: posodobi ali ustvari tudi v SQL bazi in TAKOJ osveži IndexedDB/UI
-    (async () => {
-      try {
-        const kupecID = nalogPodatki?.kupec?.KupecID;
-        if (kupecID) {
-          const buildXml = (tisk: any = {}, dodelava: any = {}, stroski: any = {}) => {
-            const gramMatch = (tisk?.material || '').toString().match(/(\d{2,4})\s*g/);
-            const gram = gramMatch ? parseInt(gramMatch[1], 10) : undefined;
-            return {
-              predmet: tisk?.predmet || '',
-              format: tisk?.format || '',
-              obseg: tisk?.obseg || '',
-              steviloKosov: tisk?.steviloKosov || '',
-              steviloPol: tisk?.steviloPol || '',
-              kosovNaPoli: tisk?.kosovNaPoli || '',
-              material: tisk?.material || '',
-              barve: tisk?.barve || '',
-              gramatura: gram,
-              uvTisk: dodelava?.uvTisk || '',
-              uvLak: dodelava?.uvLak || '',
-              plastifikacija: dodelava?.plastifikacija || '',
-              izsek: dodelava?.izsek || '',
-              zgibanje: !!dodelava?.zgibanje,
-              biganje: !!dodelava?.biganje,
-              perforacija: !!dodelava?.perforacija,
-              vezava: dodelava?.vezava || '',
-              razrez: !!dodelava?.razrez,
-              vPolah: !!dodelava?.vPolah,
-              cenaBrezDDV: stroski?.cenaBrezDDV,
-              graficnaPriprava: stroski?.graficnaPriprava
-            };
-          };
-          const xml1 = buildXml(nalogPodatki?.tisk?.tisk1, nalogPodatki?.dodelava1, nalogPodatki?.stroski1);
-          const xml2 = buildXml(nalogPodatki?.tisk?.tisk2, nalogPodatki?.dodelava2, nalogPodatki?.stroski2);
-          const pos = nalogPodatki?.posiljanje || {};
-          // “FULL” upsert na /api/delovni-nalog/full
-          const fullBody: any = {
-            delovniNalogID: stevilkaNaloga, // v tej bazi je št. naloga = ID
-            stevilkaNaloga: stevilkaNaloga,
-            kupec: nalogPodatki?.kupec || null,
-            kontakt: nalogPodatki?.kontakt || null,
-            komentar: (typeof nalogPodatki?.komentar === 'string') ? { komentar: nalogPodatki?.komentar } : (nalogPodatki?.komentar || {}),
-            tisk: nalogPodatki?.tisk || { tisk1: {}, tisk2: {} },
-            dodelava1: nalogPodatki?.dodelava1 || {},
-            dodelava2: nalogPodatki?.dodelava2 || {},
-            stroski1: nalogPodatki?.stroski1 || {},
-            stroski2: nalogPodatki?.stroski2 || {},
-            posiljanje: pos || {},
-            datumNarocila: nalogPodatki?.datumNarocila || '',
-            rokIzdelave: nalogPodatki?.rokIzdelave || ''
-          };
-          // Statusi zaključevanja: ločeno za tisk 1 / tisk 2
-          fullBody.tiskZakljucen1 = !!tiskZakljucen1;
-          fullBody.tiskZakljucen2 = !!tiskZakljucen2;
-          fullBody.tiskZakljucen = !!(tiskZakljucen1 && tiskZakljucen2);
-          fullBody.dobavljeno = !!dobavljeno;
-          fullBody.status = dobavljeno ? 'dobavljeno' : ((tiskZakljucen1 && tiskZakljucen2) ? 'zaključen' : 'v_delu');
-          if (nalogPodatki?.reklamacija) fullBody.reklamacija = nalogPodatki.reklamacija;
-          let stevilkaServer = stevilkaNaloga;
-          const resFull = await fetch('http://localhost:5000/api/delovni-nalog/full', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(fullBody)
-          });
-          if (!resFull.ok) {
-            const t = await resFull.text().catch(() => '');
-            throw new Error(`FULL upsert ni uspel (HTTP ${resFull.status})${t ? `: ${t}` : ''}`);
-          }
-          const dataFull = await resFull.json().catch(() => ({} as any));
-          if (dataFull?.delovniNalogID && Number.isFinite(Number(dataFull.delovniNalogID))) {
-            stevilkaServer = Number(dataFull.delovniNalogID);
-            setStevilkaNaloga(stevilkaServer);
-          }
-          // Vpiši minimalen zapis v IndexedDB
-          const litePayload = {
-            StevilkaNaloga: stevilkaServer,
-            DatumOdprtja: nalogPodatki?.datumNarocila || new Date().toISOString(),
-            Status: zakljucen ? 'zaključen' : (dobavljeno ? 'dobavljeno' : 'v_delu'),
-            Dobavljeno: dobavljeno ? 1 : 0,
-            TiskZakljucen: zakljucen ? 1 : 0,
-            TiskZakljucen1: tiskZakljucen1 ? 1 : 0,
-            TiskZakljucen2: tiskZakljucen2 ? 1 : 0,
-            KupecNaziv: (nalogPodatki?.kupec?.Naziv || '').toString().trim().replace(/^[,\s-]+|[,\s-]+$/g, ''),
-            Predmet1: nalogPodatki?.tisk?.tisk1?.predmet || null,
-            Predmet2: nalogPodatki?.tisk?.tisk2?.predmet || null
-          };
-          try { await saveBatchToIndexedDB([litePayload]); } catch {}
-          // Osveži prikaz glede na aktivni filter let
-          const refreshed = await loadByYearRange(currentYearFilter);
-          setVsiNalogi(refreshed);
-        }
-      } catch (e: any) {
-        console.warn('SQL shranjevanje ni uspelo:', e);
-        const msg = (e && e.message) ? e.message : 'Shranjevanje v SQL ni uspelo. Preveri povezavo z bazo.';
-        alert(msg);
-      }
-    })();
+    setSqlRemoteSaveError(null);
+
     // 1) Zaključni e-mail ob vklopu "tisk zaključen" ali "dobavljeno"
     if ((zakljucen || dobavljeno) && nalogPodatki.kupec?.email && !zakljucekEmailPoslan) {
       setEmailHtml(generirajEmailHtml('zakljucek', nalogPodatki));
@@ -1305,6 +1228,80 @@ function App() {
       mergedPodatki.odprtjeEmailPrikazan = true;
       // Posodobi tudi pravkar ustvarjen zapis v spominu
       novNalog.podatki = mergedPodatki;
+    }
+
+    const kupecID = nalogPodatki?.kupec?.KupecID;
+    if (!kupecID) {
+      setSqlRemoteSaveStatus('local_only');
+      return;
+    }
+
+    setSqlRemoteSaveStatus('pending');
+    try {
+      const pos = nalogPodatki?.posiljanje || {};
+      const fullBody: any = {
+        delovniNalogID: stevilkaNaloga,
+        stevilkaNaloga: stevilkaNaloga,
+        kupec: nalogPodatki?.kupec || null,
+        kontakt: nalogPodatki?.kontakt || null,
+        komentar: (typeof nalogPodatki?.komentar === 'string') ? { komentar: nalogPodatki?.komentar } : (nalogPodatki?.komentar || {}),
+        tisk: nalogPodatki?.tisk || { tisk1: {}, tisk2: {} },
+        dodelava1: nalogPodatki?.dodelava1 || {},
+        dodelava2: nalogPodatki?.dodelava2 || {},
+        stroski1: nalogPodatki?.stroski1 || {},
+        stroski2: nalogPodatki?.stroski2 || {},
+        posiljanje: pos || {},
+        datumNarocila: nalogPodatki?.datumNarocila || '',
+        rokIzdelave: nalogPodatki?.rokIzdelave || ''
+      };
+      fullBody.tiskZakljucen1 = !!tiskZakljucen1;
+      fullBody.tiskZakljucen2 = !!tiskZakljucen2;
+      fullBody.tiskZakljucen = !!(tiskZakljucen1 && tiskZakljucen2);
+      fullBody.dobavljeno = !!dobavljeno;
+      fullBody.status = dobavljeno ? 'dobavljeno' : ((tiskZakljucen1 && tiskZakljucen2) ? 'zaključen' : 'v_delu');
+      if (nalogPodatki?.reklamacija) fullBody.reklamacija = nalogPodatki.reklamacija;
+      let stevilkaServer = stevilkaNaloga;
+      const resFull = await fetch('http://localhost:5000/api/delovni-nalog/full', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fullBody)
+      });
+      if (!resFull.ok) {
+        const t = await resFull.text().catch(() => '');
+        throw new Error(`FULL upsert ni uspel (HTTP ${resFull.status})${t ? `: ${t}` : ''}`);
+      }
+      const dataFull = await resFull.json().catch(() => ({} as any));
+      if (dataFull?.delovniNalogID && Number.isFinite(Number(dataFull.delovniNalogID))) {
+        stevilkaServer = Number(dataFull.delovniNalogID);
+        setStevilkaNaloga(stevilkaServer);
+      }
+      const litePayload = {
+        StevilkaNaloga: stevilkaServer,
+        DatumOdprtja: nalogPodatki?.datumNarocila || new Date().toISOString(),
+        Status: zakljucen ? 'zaključen' : (dobavljeno ? 'dobavljeno' : 'v_delu'),
+        Dobavljeno: dobavljeno ? 1 : 0,
+        TiskZakljucen: zakljucen ? 1 : 0,
+        TiskZakljucen1: tiskZakljucen1 ? 1 : 0,
+        TiskZakljucen2: tiskZakljucen2 ? 1 : 0,
+        KupecNaziv: (nalogPodatki?.kupec?.Naziv || '').toString().trim().replace(/^[,\s-]+|[,\s-]+$/g, ''),
+        Predmet1: nalogPodatki?.tisk?.tisk1?.predmet || null,
+        Predmet2: nalogPodatki?.tisk?.tisk2?.predmet || null
+      };
+      try { await saveBatchToIndexedDB([litePayload]); } catch {}
+      const refreshed = await loadByYearRange(currentYearFilter);
+      setVsiNalogi(refreshed);
+
+      setSqlRemoteSaveStatus('success');
+      setShowSavedAnim(true);
+      setTimeout(() => {
+        setShowSavedAnim(false);
+        setSqlRemoteSaveStatus('idle');
+      }, 1300);
+    } catch (e: any) {
+      console.warn('SQL shranjevanje ni uspelo:', e);
+      const msg = (e && e.message) ? e.message : 'Shranjevanje v SQL ni uspelo. Preveri povezavo z bazo.';
+      setSqlRemoteSaveStatus('error');
+      setSqlRemoteSaveError(msg);
     }
   };
 
@@ -1392,6 +1389,8 @@ function App() {
     const selId = Number(nalog.stevilkaNaloga);
     setStevilkaNaloga(selId);
     const applyFromPayload = (payload: any) => {
+      setSqlRemoteSaveStatus('idle');
+      setSqlRemoteSaveError(null);
       const sanitizeNaziv = (s: any) => (s != null ? String(s).trim().replace(/^[,\s-]+|[,\s-]+$/g, '') : s);
       // Podpri oba formata: { podatki: {...} } in "full" JSON z vrha (kupec/tisk/dodelave/stroski/posiljanje na vrhu)
       const pRawCandidate = (payload && payload.podatki && Object.keys(payload.podatki).length > 0) ? payload.podatki : payload;
@@ -1481,6 +1480,8 @@ function App() {
     setTiskZakljucen2(false);
     setDobavljeno(false);
     setZaklenjeno(false);
+    setSqlRemoteSaveStatus('idle');
+    setSqlRemoteSaveError(null);
     if (obrazecRef.current) {
       obrazecRef.current.scrollIntoView({ behavior: 'smooth' });
     }
@@ -1515,6 +1516,8 @@ function App() {
     setTiskZakljucen2(false);
     setDobavljeno(false);
     setZaklenjeno(false);
+    setSqlRemoteSaveStatus('idle');
+    setSqlRemoteSaveError(null);
   };
 
   // Funkcija za spremembo roka izdelave
@@ -1869,11 +1872,9 @@ function App() {
   });
   const handleNoviNalogWrapper = () => confirmIfUnsaved(handleNoviNalog);
 
-  // Animacija za shranjevanje
+  // Shranjevanje (lokalno + SQL); ob uspehu SQL se prikaže overlay „Shranjeno v bazo“ iz handleShraniNalog
   const handleShraniNalogAnim = () => {
-    handleShraniNalog();
-    setShowSavedAnim(true);
-    setTimeout(() => setShowSavedAnim(false), 1000);
+    void handleShraniNalog();
   };
 
   // AI Email Parser funkcije
@@ -2778,11 +2779,13 @@ function App() {
           )}
           {/* Gumbi za delovni nalog */}
           {aktivniZavihek === 'delovniNalog' && (
-            <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-t bg-white">
+            <div className="border-t bg-white">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2">
               <button
                 type="button"
                 onClick={handleShraniNalogAnim}
-                className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 font-medium text-sm"
+                disabled={sqlRemoteSaveStatus === 'pending'}
+                className="px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 font-medium text-sm disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 💾 Shrani
               </button>
@@ -3148,6 +3151,26 @@ function App() {
                 </button>
               </div>
             </div>
+            {sqlRemoteSaveStatus === 'pending' && (
+              <div className="px-4 pb-2 text-sm text-gray-800 flex items-center gap-2 bg-amber-50/80 border-t border-amber-100">
+                <span className="inline-block h-4 w-4 border-2 border-amber-700 border-t-transparent rounded-full animate-spin shrink-0" aria-hidden />
+                Shranjevanje v bazo …
+              </div>
+            )}
+            {sqlRemoteSaveStatus === 'local_only' && (
+              <div className="px-4 pb-2 text-sm text-amber-950 bg-amber-50 border-t border-amber-100">
+                <span className="font-medium">Shranjeno samo na tej napravi</span>
+                {' '}(ni KupecID — izberite kupca iz baze ali dodajte stranko in jo shranjite v SQL, nato znova Shrani).
+              </div>
+            )}
+            {sqlRemoteSaveStatus === 'error' && sqlRemoteSaveError && (
+              <div className="px-4 pb-2 text-sm bg-red-50 border-t border-red-100 text-red-900">
+                <span className="font-medium">Shranjevanje v bazo ni uspelo.</span>{' '}
+                {sqlRemoteSaveError}
+                <div className="mt-1 text-red-800">Ponovno kliknite Shrani, ko odpravite težavo.</div>
+              </div>
+            )}
+          </div>
           )}
         </div>
       </div>
@@ -3471,10 +3494,12 @@ function App() {
                 className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                 onClick={() => {
                   setPrikaziUnsavedModal(false);
-                  if (pendingAction) {
-                    handleShraniNalogAnim();
-                    setTimeout(() => pendingAction(), 1000); // Po animaciji
-                  }
+                  const next = pendingAction;
+                  setPendingAction(null);
+                  void (async () => {
+                    await handleShraniNalog();
+                    if (next) next();
+                  })();
                 }}
               >Da, shrani</button>
               <button
@@ -3499,7 +3524,7 @@ function App() {
       {showSavedAnim && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
           <div className="bg-green-600 text-white px-6 py-4 rounded-lg shadow-lg text-lg font-semibold">
-            Delovni nalog shranjen!
+            Shranjeno v bazo
           </div>
         </div>
       )}
