@@ -40,11 +40,6 @@ const KomentarPolje: React.FC<KomentarPoljeProps> = ({ disabled = false, zakljuc
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${dobavljeno ? 'bg-[#e6f9f3] border-[#b6e7d8]' : zakljucen ? 'bg-red-50 border-red-300' : 'border-gray-300'}`}
             placeholder="Vnesi komentar za delovni nalog... (obvezno)"
           />
-          {!podatki.komentar && (
-            <div className="text-sm text-red-600 mt-1">
-              Komentar je obvezno polje
-            </div>
-          )}
         </div>
       </div>
     </div>

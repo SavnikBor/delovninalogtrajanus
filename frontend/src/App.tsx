@@ -990,7 +990,8 @@ const izracunajSkupniCasBrezZaprtih = (
 
 function App() {
   const [zaklenjeno, setZaklenjeno] = useState(false);
-  const [stevilkaNaloga, setStevilkaNaloga] = useState(65001);
+  /** 0 = osnutek, številka še ni dodeljena (ne prikaži v glavi, ne združuj s shranjenimi zapisi). */
+  const [stevilkaNaloga, setStevilkaNaloga] = useState(0);
   const [key, setKey] = useState(0); // Key za prisilno re-render komponent
   const [nalogShranjeno, setNalogShranjeno] = useState(true);
   const [emailPoslan, setEmailPoslan] = useState(false);
@@ -1034,7 +1035,7 @@ function App() {
   const [showDeletedAnim, setShowDeletedAnim] = useState(false);
   const [showEmailAnim, setShowEmailAnim] = useState(false);
   /** SQL sync (POST /full); ne mešati z nalogShranjeno (lokalno usklajen obrazec). */
-  const [sqlRemoteSaveStatus, setSqlRemoteSaveStatus] = useState<'idle' | 'pending' | 'success' | 'error' | 'local_only'>('idle');
+  const [sqlRemoteSaveStatus, setSqlRemoteSaveStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [sqlRemoteSaveError, setSqlRemoteSaveError] = useState<string | null>(null);
   const [aktivniZavihek, setAktivniZavihek] = useState<'delovniNalog'|'prioritetniNalogi'|'kapacitete'|'koledar'|'izsekovalnaOrodja'|'analiza'>('delovniNalog');
   const [scrollToPrioritetniNalog, setScrollToPrioritetniNalog] = useState<{ id: number; ts: number } | null>(null);
@@ -1252,12 +1253,6 @@ function App() {
       setSqlRemoteSaveStatus((prev) => (prev === 'pending' ? prev : 'idle'));
     }
   }, [nalogShranjeno]);
-
-  useEffect(() => {
-    if (sqlRemoteSaveStatus !== 'local_only') return;
-    const t = setTimeout(() => setSqlRemoteSaveStatus('idle'), 9000);
-    return () => clearTimeout(t);
-  }, [sqlRemoteSaveStatus]);
 
   // Bližnjico Ctrl+S dodamo nižje (po definiciji handleShraniNalog).
 
@@ -1981,8 +1976,8 @@ ${totalsHtml}
       }
     });
 
-    // Dodaj trenutni nalog, če ni shranjen
-    if (!nalogShranjeno && nalogPodatki) {
+    // Dodaj trenutni nalog, če ni shranjen in ima že dodeljeno številko (osnutek 0 ne sodi na prioritetno karto).
+    if (!nalogShranjeno && nalogPodatki && Number(stevilkaNaloga) > 0) {
       const trenutniNalog = {
         stevilkaNaloga,
         podatki: nalogPodatki,
@@ -2087,7 +2082,7 @@ ${totalsHtml}
   const handleShraniNalog = async () => {
     const isNewId = !Number.isFinite(Number(stevilkaNaloga)) || Number(stevilkaNaloga) <= 0;
     // Združi z obstoječim, da se ob Ctrl+S ne prepišejo polja z null/undefined
-    const obstojeci = isNewId ? null : vsiNalogi.find(n => n.stevilkaNaloga === stevilkaNaloga);
+    const obstojeci = isNewId ? null : vsiNalogi.find(n => Number(n.stevilkaNaloga) === Number(stevilkaNaloga));
     const stariPodatki = obstojeci?.podatki || {};
     const mergePlain = (novObj: any, starObj: any) => {
       // Če je novObj eksplicitno null ali prazen objekt, to pomeni namerni "reset" -> počisti staro stanje
@@ -2120,6 +2115,19 @@ ${totalsHtml}
       const hasNaziv = !!String(k.Naziv || '').trim();
       return !!k.rocniVnos || (hasNaziv && !Number.isFinite(id)) || (hasNaziv && id <= 0);
     })();
+
+    const normalizeKupecForPersist = (k: any): any | null => {
+      if (k == null || typeof k !== 'object') return null;
+      const id = Number((k as any).KupecID ?? 0);
+      const naziv = String((k as any).Naziv ?? '').trim();
+      const other = ['Naslov', 'Posta', 'Kraj', 'Telefon', 'Fax', 'IDzaDDV', 'email', 'Email', 'narocilnica', 'Narocilnica'].some(
+        (f) => String((k as any)[f] ?? '').trim()
+      );
+      const poslji = !!(k as any).posljiEmail || !!(k as any).PosljiEmail;
+      if (id > 0) return { ...k };
+      if (naziv || other || poslji) return { ...k };
+      return null;
+    };
 
     const normalizeRok = (rokDateRaw: any, rokUraRaw: any, datumNarocilaRaw: any) => {
       const rokDate = String(rokDateRaw || '').trim(); // YYYY-MM-DD ali ''
@@ -2165,6 +2173,7 @@ ${totalsHtml}
       odprtjeEmailPonujen: nalogPodatki.odprtjeEmailPonujen ?? stariPodatki.odprtjeEmailPonujen ?? false,
       zakljucekEmailPonujen: nalogPodatki.zakljucekEmailPonujen ?? stariPodatki.zakljucekEmailPonujen ?? false
     };
+    mergedPodatki.kupec = normalizeKupecForPersist(mergedPodatki.kupec) as any;
 
     // Naj bo UI konsistenten z normalizacijo roka (posebej: "prazno" mora ostati prazno)
     if (
@@ -2254,65 +2263,58 @@ ${totalsHtml}
           ...mergedPodatki,
           kupec: mergedPodatki.kupec ? { ...(mergedPodatki.kupec as any) } : null,
         };
-        const k0 = podatkiZaSql.kupec as any;
-        const nazivKupca = String(k0?.Naziv || '').trim();
+
+        let k0 = podatkiZaSql.kupec as any;
         const hasValidKupecId = !!(k0 && Number(k0.KupecID) > 0);
 
-        if (!k0) {
-          setSqlRemoteSaveStatus('local_only');
-          return;
-        }
-        if (!hasValidKupecId) {
+        if (k0 && !hasValidKupecId) {
+          const nazivKupca = String(k0.Naziv || '').trim();
           if (!nazivKupca) {
-            setSqlRemoteSaveStatus('error');
-            setSqlRemoteSaveError('Za zapis v bazo vpišite naziv kupca ali izberite kupca s seznama.');
-            return;
+            // Obrazec ima "prazen" kupec objekt brez naziva — shranjujemo nalog brez kupca.
+            podatkiZaSql.kupec = null;
+            k0 = null;
+          } else {
+            const resK = await fetch('/api/kupec', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                Naziv: nazivKupca,
+                Naslov: k0.Naslov || '',
+                Posta: k0.Posta || '',
+                Kraj: k0.Kraj || '',
+                Telefon: k0.Telefon || '',
+                Fax: k0.Fax || '',
+                IDzaDDV: k0.IDzaDDV || '',
+                email: k0.email || '',
+              }),
+            });
+            const dataK = await resK.json().catch(() => ({} as any));
+            if (!resK.ok || !dataK.ok) {
+              throw new Error(dataK?.error || 'Vnos kupca v bazo ni uspel.');
+            }
+            const idNovi = Number(dataK.kupec?.KupecID);
+            if (!Number.isFinite(idNovi) || idNovi <= 0) {
+              throw new Error('Strežnik ni vrnil veljavnega KupecID.');
+            }
+            const posodobljenKupec = {
+              ...k0,
+              KupecID: idNovi,
+              rocniVnos: false,
+              Naziv: dataK.kupec?.Naziv ?? k0.Naziv,
+              Naslov: dataK.kupec?.Naslov ?? k0.Naslov,
+              Posta: dataK.kupec?.Posta ?? k0.Posta,
+              Kraj: dataK.kupec?.Kraj ?? k0.Kraj,
+              Telefon: dataK.kupec?.Telefon ?? k0.Telefon,
+              Fax: dataK.kupec?.Fax ?? k0.Fax,
+              IDzaDDV: dataK.kupec?.IDzaDDV ?? k0.IDzaDDV,
+              email: dataK.kupec?.email ?? k0.email,
+            };
+            podatkiZaSql.kupec = posodobljenKupec;
+            k0 = posodobljenKupec;
+            if (openNalogRef.current === saveFor && saveSeq === saveSeqRef.current) {
+              setNalogPodatki((prev: any) => ({ ...prev, kupec: posodobljenKupec }));
+            }
           }
-          const resK = await fetch('/api/kupec', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              Naziv: nazivKupca,
-              Naslov: k0.Naslov || '',
-              Posta: k0.Posta || '',
-              Kraj: k0.Kraj || '',
-              Telefon: k0.Telefon || '',
-              Fax: k0.Fax || '',
-              IDzaDDV: k0.IDzaDDV || '',
-              email: k0.email || '',
-            }),
-          });
-          const dataK = await resK.json().catch(() => ({} as any));
-          if (!resK.ok || !dataK.ok) {
-            throw new Error(dataK?.error || 'Vnos kupca v bazo ni uspel.');
-          }
-          const idNovi = Number(dataK.kupec?.KupecID);
-          if (!Number.isFinite(idNovi) || idNovi <= 0) {
-            throw new Error('Strežnik ni vrnil veljavnega KupecID.');
-          }
-          const posodobljenKupec = {
-            ...k0,
-            KupecID: idNovi,
-            rocniVnos: false,
-            Naziv: dataK.kupec?.Naziv ?? k0.Naziv,
-            Naslov: dataK.kupec?.Naslov ?? k0.Naslov,
-            Posta: dataK.kupec?.Posta ?? k0.Posta,
-            Kraj: dataK.kupec?.Kraj ?? k0.Kraj,
-            Telefon: dataK.kupec?.Telefon ?? k0.Telefon,
-            Fax: dataK.kupec?.Fax ?? k0.Fax,
-            IDzaDDV: dataK.kupec?.IDzaDDV ?? k0.IDzaDDV,
-            email: dataK.kupec?.email ?? k0.email,
-          };
-          podatkiZaSql.kupec = posodobljenKupec;
-          if (openNalogRef.current === saveFor && saveSeq === saveSeqRef.current) {
-            setNalogPodatki((prev: any) => ({ ...prev, kupec: posodobljenKupec }));
-          }
-        }
-
-        if (!(Number(podatkiZaSql?.kupec?.KupecID) > 0)) {
-          setSqlRemoteSaveStatus('error');
-          setSqlRemoteSaveError('Manjka KupecID. Preverite kupca.');
-          return;
         }
 
         setSqlRemoteSaveStatus('pending');
@@ -5787,7 +5789,9 @@ ${totalsHtml}
                   </div>
                 )}
               </div>
-              <span className="ml-4 font-bold text-lg">Delovni nalog št.: {stevilkaNaloga}</span>
+              <span className="ml-4 font-bold text-lg">
+                {Number(stevilkaNaloga) > 0 ? <>Delovni nalog št.: {stevilkaNaloga}</> : <>Delovni nalog št.:</>}
+              </span>
               <span className="ml-2 text-sm text-gray-600">Datum odprtja: {nalogPodatki?.datumNarocila ? (() => {
                 const date = new Date(nalogPodatki.datumNarocila);
                 const day = date.getDate();
@@ -5965,12 +5969,6 @@ ${totalsHtml}
               <div className="px-4 pb-2 text-sm text-gray-800 flex items-center gap-2 bg-amber-50/80 border-t border-amber-100">
                 <span className="inline-block h-4 w-4 border-2 border-amber-700 border-t-transparent rounded-full animate-spin shrink-0" aria-hidden />
                 Shranjevanje v bazo …
-              </div>
-            )}
-            {sqlRemoteSaveStatus === 'local_only' && (
-              <div className="px-4 pb-2 text-sm text-amber-950 bg-amber-50 border-t border-amber-100">
-                <span className="font-medium">Samodejni zapis v SQL ni bil izveden</span>
-                {' '}(ni izbranega kupca — izberite ali vnesite kupca, nato znova Shrani).
               </div>
             )}
             {sqlRemoteSaveStatus === 'error' && sqlRemoteSaveError && (
