@@ -2,6 +2,8 @@
 
 **Backend:** kanonični HTTP API teče iz **`backend/server.js`** (zagon iz korena: `npm run server` / `npm start`, ali iz `backend/`: `npm run dev`). Podrobnosti: [`backend/README.md`](backend/README.md).
 
+**Opomba:** `backend/src/app.ts` je označen kot legacy in ni del aktivnega API toka — glej razdelek o deprecated TypeScript backendu v [`backend/README.md`](backend/README.md).
+
 Ta dokument opisuje, kaj mora aplikacija **Delovni nalog** implementirati, da Ceniki Trajanus lahko pridobijo realne čase po dodelavah in jih uporabljajo pri izračunu cen.
 
 ---

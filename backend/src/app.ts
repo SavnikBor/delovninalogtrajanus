@@ -1,3 +1,12 @@
+/**
+ * @deprecated LEGACY — ta datoteka ni kanonični backend runtime.
+ *
+ * Za dev/prod API uporabljaj `backend/server.js` (glej `backend/README.md`). Ta Express aplikacija
+ * podvaja ali razlikuje nekatere poti glede na `server.js`; vsebuje tudi poti, ki v `server.js` niso
+ * enakovredno izpostavljene. Frontend v tem repozitoriju je usklajen s `server.js`.
+ *
+ * Ne zaganjaj za običajen razvoj — tvega zmedo (drugačen nabor endpointov) in ni vir resnice za aplikacijo.
+ */
 import express, { Request, Response } from 'express'; // <-- popravljeno
 import cors from 'cors';
 import { poolPromise } from './db';
@@ -12,8 +21,6 @@ import nodemailer from 'nodemailer';
 import { parseEmailWithAI, normalizeParsedEmail, parseEmailToRazbraniWithAI } from './services/parseEmail';
 import { ParsedEmailFormPrefill } from './types/parsedEmail';
 import { RazbraniPodatkiEnvelope } from './types/razbraniPodatki';
-
-// LEGACY: ta Express aplikacija ni kanonični backend. Za API v dev/prod uporabljaj backend/server.js (glej backend/README.md).
 
 // Funkcija za formatiranje časa iz ur v minute
 const formatirajCas = (ure: number): number => {
