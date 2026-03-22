@@ -15,6 +15,16 @@ const OpenAI = require('openai');
 const crypto = require('crypto');
 const cenikImportUtils = require('./src/cenikImportUtils');
 const https = require('https');
+const { buildDbConfig } = require('./config/database');
+const {
+  toYmd,
+  toHm,
+  isValidMonthStr,
+  monthStrToDateStart,
+  dateToMonthStr,
+  isValidDateStr,
+} = require('./lib/dates');
+const { safeReadJson, safeWriteJson } = require('./lib/jsonStore');
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(String(process.env.PORT), 10) : 5000;
@@ -45,31 +55,6 @@ try {
   });
 } catch (e) {
   console.warn('Opozorilo: branje process.env ni uspelo:', e);
-}
-
-// MSSQL povezava (povzeto iz .env datoteke)
-// Podpri več imen ključev za združljivost (DB_PASS/DB_PASSWORD, DB_SERVER/DB_HOST, DB_PORT)
-// Podpri tudi named instance:
-// - če je DB_SERVER v obliki "HOST\\INSTANCE", ga pusti pri miru (node-mssql/tedious zna to).
-// - če imaš instanco posebej, uporabi DB_INSTANCE/DB_INSTANCE_NAME.
-function buildDbConfig(dbName) {
-  const rawServer = process.env.DB_SERVER || process.env.DB_HOST || 'localhost';
-  const fromEnvInstance = process.env.DB_INSTANCE || process.env.DB_INSTANCE_NAME;
-  // Pomembno: NE razbijaj "HOST\\INSTANCE", ker pri tebi to že deluje.
-  const server = rawServer;
-  const instanceName = rawServer.includes('\\') ? undefined : (fromEnvInstance || undefined);
-  const options = { encrypt: false, trustServerCertificate: true };
-  if (instanceName) options.instanceName = instanceName;
-  return {
-    user: process.env.DB_USER || process.env.DB_USERNAME,
-    password: process.env.DB_PASS || process.env.DB_PASSWORD,
-    server,
-    database: dbName,
-    port: process.env.DB_PORT ? parseInt(process.env.DB_PORT, 10) : undefined,
-    options,
-    connectionTimeout: 5000,
-    requestTimeout: 30000,
-  };
 }
 
 const defaultDbName = process.env.DB_NAME || process.env.DB_NAME_TEST || 'DelovniNalog_TEST';
@@ -5913,59 +5898,6 @@ let scanSeq = 1;
 const CLOSED_TASKS_FILE = path.join(__dirname, 'data', 'closed-tasks.json');
 const NALOG_UPDATES_FILE = path.join(__dirname, 'data', 'nalog-updates.json');
 const CENIK_IMPORTS_FILE = path.join(__dirname, 'data', 'cenik-imports.json');
-function ensureDir(p) {
-  try { fs.mkdirSync(p, { recursive: true }); } catch {}
-}
-function safeReadJson(file, fallback) {
-  try {
-    if (!fs.existsSync(file)) return fallback;
-    const txt = fs.readFileSync(file, 'utf8');
-    if (!txt) return fallback;
-    const obj = JSON.parse(txt);
-    return obj ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-function safeWriteJson(file, obj) {
-  try {
-    ensureDir(path.dirname(file));
-    fs.writeFileSync(file, JSON.stringify(obj, null, 2), 'utf8');
-  } catch (e) {
-    console.warn('Opozorilo: zapis closed-tasks ni uspel:', e && e.message ? e.message : String(e));
-  }
-}
-
-function toYmd(value) {
-  const s = String(value || '').trim();
-  if (!s) return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.slice(0, 10);
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return '';
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function isValidYmd(value) {
-  const ymd = toYmd(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return false;
-  const d = new Date(`${ymd}T00:00:00`);
-  return !Number.isNaN(d.getTime());
-}
-
-function toHm(value) {
-  const s = String(value || '').trim();
-  if (!s) return '';
-  const m = s.match(/^(\d{1,2}):(\d{2})$/);
-  if (!m) return '';
-  const hh = Number(m[1]);
-  const mm = Number(m[2]);
-  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return '';
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-}
 
 function generateCenikImportId() {
   return `cenik-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -6539,25 +6471,6 @@ app.post('/api/cenik-import/:id/reject', (req, res) => {
 });
 
 // ---- Analitika: KPRI Prihodek (mesečno) ----
-function isValidMonthStr(s) {
-  if (!s || typeof s !== 'string') return false;
-  const m = s.match(/^(\d{4})-(\d{2})$/);
-  if (!m) return false;
-  const mm = parseInt(m[2], 10);
-  return mm >= 1 && mm <= 12;
-}
-
-function monthStrToDateStart(s) {
-  const [y, m] = s.split('-').map(Number);
-  return new Date(y, (m || 1) - 1, 1);
-}
-
-function dateToMonthStr(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  return `${y}-${m}`;
-}
-
 let dnColsCache = null;
 let dnColsCacheAt = 0;
 async function getDelovniNalogCols() {
@@ -6710,10 +6623,6 @@ app.get('/api/analitika/kpri-prihodek', async (req, res) => {
 });
 
 // ---- Analitika: KPI Tehnologi (dnevno + vrednosti) ----
-function isValidDateStr(s) {
-  return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
-
 app.get('/api/analitika/tehnologi-kpi', async (req, res) => {
   try {
     const from = (req.query.from || '').toString();
