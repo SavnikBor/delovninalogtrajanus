@@ -24,7 +24,7 @@ npm run dev:watch
 
 ## Legacy TypeScript (`src/app.ts`)
 
-Datoteka `src/app.ts` je **vzporedna zgodovinska** implementacija; **ni** glavni strežnik. Kompilacija v `dist/` je na voljo le za morebitno lokalno preverjanje:
+Datoteka `src/app.ts` je **vzporedna zgodovinska** implementacija; **ni** glavni strežnik in **ni** del kanoničnega runtime-a (dev/prod API je `server.js`). Kompilacija v `dist/` je na voljo le za morebitno lokalno preverjanje:
 
 ```bash
 npm run build:legacy-ts

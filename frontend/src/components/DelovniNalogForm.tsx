@@ -1,4 +1,5 @@
 // src/components/DelovniNalogForm.tsx
+// Ni del aktivnega UI toka: v App.tsx ni vključena. Glavni delovni nalog je v App.tsx; ta datoteka ostane za morebitno samostojno uporabo / zgodovino.
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import KupecSelect from './KupecSelect';

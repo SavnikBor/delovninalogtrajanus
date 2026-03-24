@@ -15,7 +15,6 @@ import {
   PLASTIFIKACIJA_OPTIONS,
   LEPLJENJE_SIRINE_OPTIONS,
 } from './aiDictionary';
-import DelovniNalogForm from './components/DelovniNalogForm';
 import KupecSelect from './components/KupecSelect';
 import TiskSekcija from './components/TiskSekcija';
 import DodelavaSekcija from './components/DodelavaSekcija';
